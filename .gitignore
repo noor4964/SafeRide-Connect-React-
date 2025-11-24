@@ -1,0 +1,78 @@
+# Dependencies
+node_modules/
+npm-debug.*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Expo
+.expo/
+dist/
+web-build/
+.expo-shared/
+
+# Environment variables - CRITICAL: Never commit
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.production
+*.env
+
+# Firebase sensitive files - SECURITY CRITICAL
+google-services.json
+GoogleService-Info.plist
+.firebaserc
+firebase-debug.log*
+firestore-debug.log*
+
+# Firebase config with real credentials
+# Users must create their own with their Firebase project
+src/config/firebaseConfig.ts
+
+# Build outputs
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary
+*.tmp
+*.temp
+.cache/
+
+# React Native
+*.hprof
+android/app/build/
+android/.gradle/
+ios/Pods/
+ios/build/
