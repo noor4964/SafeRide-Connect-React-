@@ -16,6 +16,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { LoginFormSchema, LoginForm, AuthStackParamList } from '@/types';
 import { useLogin } from '../hooks/useUser';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
 
@@ -25,6 +27,7 @@ interface Props {
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const { colors } = useTheme();
   const loginMutation = useLogin();
 
   const {
@@ -66,7 +69,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
             <View style={styles.form}>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>University Email</Text>
+                <Text style={styles.label}>AIUB Email</Text>
                 <Controller
                   control={control}
                   name="email"
@@ -76,7 +79,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
-                      placeholder="your.email@university.edu"
+                      placeholder="12-34567-1@student.aiub.edu"
                       keyboardType="email-address"
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -169,15 +172,17 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#1a365d',
-    marginBottom: 8,
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 10,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#718096',
+    fontSize: 17,
+    color: '#64748b',
     textAlign: 'center',
+    fontWeight: '500',
   },
   form: {
     marginBottom: 32,
@@ -193,13 +198,18 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: '#ffffff',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#e2e8f0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     fontSize: 16,
-    color: '#2d3748',
+    color: '#0f172a',
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   inputError: {
     borderColor: '#e53e3e',
@@ -211,18 +221,25 @@ const styles = StyleSheet.create({
   },
   loginButton: {
     backgroundColor: '#3182ce',
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 18,
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: '#3182ce',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
   loginButtonDisabled: {
-    backgroundColor: '#a0aec0',
+    backgroundColor: '#94a3b8',
+    shadowOpacity: 0.1,
   },
   loginButtonText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   forgotPassword: {
     alignItems: 'center',
@@ -250,10 +267,15 @@ const styles = StyleSheet.create({
   },
   safetyInfo: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 20,
+    borderRadius: 14,
+    padding: 22,
     borderLeftWidth: 4,
-    borderLeftColor: '#38a169',
+    borderLeftColor: '#10b981',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   safetyTitle: {
     fontSize: 16,

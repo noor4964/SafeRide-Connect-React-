@@ -17,6 +17,8 @@ import { RegisterFormSchema, RegisterForm } from '@/types';
 import { useRegister } from '../hooks/useUser';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AuthStackParamList } from '@/types';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/context/ThemeContext';
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
 
@@ -26,6 +28,7 @@ interface Props {
 
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const { colors } = useTheme();
   const registerMutation = useRegister();
 
   const {
@@ -41,7 +44,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       firstName: '',
       lastName: '',
       phoneNumber: '',
-      university: '',
+      university: 'American International University-Bangladesh (AIUB)',
     },
   });
 
@@ -120,7 +123,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>University Email</Text>
+                <Text style={styles.label}>AIUB Email</Text>
                 <Controller
                   control={control}
                   name="email"
@@ -130,7 +133,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
-                      placeholder="your.email@university.edu"
+                      placeholder="12-34567-1@student.aiub.edu"
                       keyboardType="email-address"
                       autoCapitalize="none"
                       autoCorrect={false}
@@ -140,6 +143,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                 {errors.email && (
                   <Text style={styles.errorText}>{errors.email.message}</Text>
                 )}
+                <Text style={styles.helperText}>
+                  Student: XX-XXXXX-X@student.aiub.edu{'\n'}
+                  Faculty: name.surname@aiub.edu
+                </Text>
               </View>
 
               <View style={styles.inputContainer}>
@@ -170,18 +177,14 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
                   name="university"
                   render={({ field: { onChange, onBlur, value } }) => (
                     <TextInput
-                      style={[styles.input, errors.university && styles.inputError]}
+                      style={[styles.input, styles.inputDisabled]}
                       onBlur={onBlur}
                       onChangeText={onChange}
                       value={value}
-                      placeholder="University Name"
-                      autoCapitalize="words"
+                      editable={false}
                     />
                   )}
                 />
-                {errors.university && (
-                  <Text style={styles.errorText}>{errors.university.message}</Text>
-                )}
               </View>
 
               <View style={styles.inputContainer}>
@@ -314,25 +317,42 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#e53e3e',
   },
+  inputDisabled: {
+    backgroundColor: '#f7fafc',
+    color: '#718096',
+  },
   errorText: {
     color: '#e53e3e',
     fontSize: 12,
     marginTop: 4,
   },
+  helperText: {
+    color: '#718096',
+    fontSize: 11,
+    marginTop: 4,
+    lineHeight: 16,
+  },
   registerButton: {
     backgroundColor: '#3182ce',
-    borderRadius: 12,
-    paddingVertical: 16,
+    borderRadius: 14,
+    paddingVertical: 18,
     alignItems: 'center',
     marginTop: 8,
+    shadowColor: '#3182ce',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
   },
   registerButtonDisabled: {
-    backgroundColor: '#a0aec0',
+    backgroundColor: '#94a3b8',
+    shadowOpacity: 0.1,
   },
   registerButtonText: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
   footer: {
     flexDirection: 'row',

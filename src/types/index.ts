@@ -13,10 +13,19 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   Home: undefined;
-  PostRide: undefined;
-  MyRides: undefined;
+  PostRequest: undefined;
+  MyRequests: undefined;
+  Notifications: undefined;
   Safety: undefined;
   Profile: undefined;
+  AccountVerification: undefined;
+  PhoneVerification: { phoneNumber: string };
+  EmergencyContacts: undefined;
+  RideVerification: undefined;
+  RideDetails: { ride: Ride };
+  FindMatches: { requestId: string };
+  MatchDetails: { matchId: string };
+  GroupChat: { matchId: string };
 };
 
 // Location types
@@ -41,13 +50,17 @@ export const UserSchema = z.object({
   studentId: z.string().optional(),
   isVerified: z.boolean().default(false),
   isStudentVerified: z.boolean().default(false),
+  isPhoneVerified: z.boolean().default(false),
+  emailVerifiedAt: z.date().optional(),
+  studentVerifiedAt: z.date().optional(),
+  phoneVerifiedAt: z.date().optional(),
   profileImageUrl: z.string().url().optional(),
   rating: z.number().min(0).max(5).default(0),
   totalRides: z.number().default(0),
   emergencyContacts: z.array(z.object({
-    name: z.string(),
-    phone: z.string(),
-    relationship: z.string()
+    name: z.string().min(1),
+    phone: z.string().min(10),
+    relationship: z.string().min(1)
   })).default([]),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -118,9 +131,22 @@ export const RideRequestSchema = z.object({
 
 export type RideRequest = z.infer<typeof RideRequestSchema>;
 
+// AIUB Email validation helper
+const AIUB_STUDENT_EMAIL_REGEX = /^\d{2}-\d{5}-\d{1}@student\.aiub\.edu$/;
+const AIUB_FACULTY_EMAIL_REGEX = /^[a-z]\.[a-z]+@aiub\.edu$/;
+
+const isValidAIUBEmail = (email: string): boolean => {
+  return AIUB_STUDENT_EMAIL_REGEX.test(email) || AIUB_FACULTY_EMAIL_REGEX.test(email);
+};
+
 // Form schemas for validation
 export const LoginFormSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string()
+    .email('Invalid email address')
+    .refine(
+      (email) => isValidAIUBEmail(email),
+      'Email must be a valid AIUB email (e.g., 12-34567-1@student.aiub.edu or name.surname@aiub.edu)'
+    ),
   password: z.string().min(6, 'Password must be at least 6 characters')
 });
 
@@ -129,14 +155,16 @@ export type LoginForm = z.infer<typeof LoginFormSchema>;
 export const RegisterFormSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
-  email: z.string().email('Invalid email address').refine(
-    (email) => email.endsWith('.edu') || email.includes('university') || email.includes('college'),
-    'Please use a valid university email address'
-  ),
+  email: z.string()
+    .email('Invalid email address')
+    .refine(
+      (email) => isValidAIUBEmail(email),
+      'Email must be a valid AIUB email (e.g., 12-34567-1@student.aiub.edu or name.surname@aiub.edu)'
+    ),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
   phoneNumber: z.string().min(10, 'Valid phone number required'),
-  university: z.string().min(1, 'University is required')
+  university: z.string().min(1, 'University is required').default('American International University-Bangladesh (AIUB)')
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"]

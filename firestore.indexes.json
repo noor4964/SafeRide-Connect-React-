@@ -23,7 +23,11 @@
           "order": "ASCENDING"
         },
         {
-          "fieldPath": "pickup.geohash",
+          "fieldPath": "origin.geohash",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "departureTime",
           "order": "ASCENDING"
         }
       ]

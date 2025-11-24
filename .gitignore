@@ -70,6 +70,10 @@ coverage/
 *.temp
 .cache/
 
+# Documentation files (auto-generated)
+*.md
+!README.md
+
 # React Native
 *.hprof
 android/app/build/

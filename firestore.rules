@@ -2,18 +2,171 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
 
-    // This rule allows anyone with your Firestore database reference to view, edit,
-    // and delete all data in your Firestore database. It is useful for getting
-    // started, but it is configured to expire after 30 days because it
-    // leaves your app open to attackers. At that time, all client
-    // requests to your Firestore database will be denied.
-    //
-    // Make sure to write security rules for your app before that time, or else
-    // all client requests to your Firestore database will be denied until you Update
-    // your rules
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 12, 25);
+    // Users collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // Email verification collection
+    match /emailVerifications/{userId} {
+      allow create: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // Phone verification collection
+    match /phoneVerifications/{userId} {
+      allow create: if isOwner(userId);
+      allow read: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // Rides collection
+    match /rides/{rideId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.driverId) || 
+        request.auth.uid in resource.data.passengers
+      );
+      allow delete: if isAuthenticated() && isOwner(resource.data.driverId);
+    }
+
+    // Ride requests collection (old - for driver-based rides)
+    match /rideRequests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isOwner(resource.data.requesterId) || 
+        isOwner(resource.data.driverId)
+      );
+      allow delete: if isAuthenticated() && isOwner(resource.data.requesterId);
+    }
+
+    // Ride matching requests (new - for peer-to-peer ride sharing)
+    match /rideRequests/{requestId} {
+      // Anyone can read active requests to find matches
+      allow read: if isAuthenticated();
+      
+      // Only authenticated users can create requests
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      
+      // Only owner can update their request
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Only owner can delete their request
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+
+    // Ride matches collection
+    match /rideMatches/{matchId} {
+      // Anyone authenticated can read matches (simplified for now)
+      allow read: if isAuthenticated();
+      
+      // System/cloud function creates matches (or any authenticated user for now)
+      allow create: if isAuthenticated();
+      
+      // Anyone authenticated can update matches (simplified for now)
+      allow update: if isAuthenticated();
+      
+      // Anyone authenticated can delete matches (simplified for now)
+      allow delete: if isAuthenticated();
+    }
+
+    // Chat messages collection
+    match /chatMessages/{messageId} {
+      // Anyone authenticated can read messages (simplified for now)
+      allow read: if isAuthenticated();
+      
+      // Anyone authenticated can send messages
+      allow create: if isAuthenticated() && 
+                       request.auth.uid == request.resource.data.senderId;
+      
+      // Only sender can update their message
+      allow update: if isAuthenticated() && isOwner(resource.data.senderId);
+      
+      // Only sender can delete their message
+      allow delete: if isAuthenticated() && isOwner(resource.data.senderId);
+    }
+
+    // Messages collection (legacy - for future chat feature)
+    match /messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isOwner(resource.data.senderId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.senderId);
+    }
+
+    // Notifications collection
+    match /notifications/{notificationId} {
+      // Users can only read their own notifications
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // System can create notifications (or any authenticated user for now)
+      allow create: if isAuthenticated();
+      
+      // Users can update their own notifications (mark as read, delete)
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      
+      // Users can delete their own notifications
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+
+    // Notification preferences collection
+    match /notificationPreferences/{userId} {
+      // Users can only read/write their own preferences
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+
+    // Push tokens collection
+    match /pushTokens/{token} {
+      // Users can only read/write their own tokens
+      allow read: if isAuthenticated() && isOwner(resource.data.userId);
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+
+    // Emergency alerts collection
+    match /emergencyAlerts/{alertId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+
+    // SOS alerts collection
+    match /sosAlerts/{alertId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update: if isAuthenticated() && isOwner(resource.data.userId);
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
+    }
+
+    // Ride verifications collection
+    match /rideVerifications/{verificationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(request.resource.data.userId);
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && isOwner(resource.data.userId);
     }
   }
 }

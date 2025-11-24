@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,16 +9,27 @@ import {
   TextInput,
   RefreshControl,
   Alert,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
+import { useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import MapView, { Marker, PROVIDER_GOOGLE, Callout } from 'react-native-maps';
+import { distanceBetween } from 'geofire-common';
 import { useUser } from '@/features/auth/hooks/useUser';
+import { useAuth } from '@/features/auth/context/AuthContext';
 import { getRides, getRidesNearLocation } from '@/features/rides/services/ridesService';
-import { Ride, Location as LocationType } from '@/types';
+import { Ride, Location as LocationType, MainTabParamList } from '@/types';
+import { useTheme } from '@/context/ThemeContext';
+
+type HomeScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Home'>;
 
 // TODO: Create proper RideCard component
-const RideCard: React.FC<{ ride: Ride; onPress: () => void }> = ({ ride, onPress }) => {
+const RideCard: React.FC<{ ride: Ride; onPress: () => void; userLocation?: LocationType }> = ({ ride, onPress, userLocation }) => {
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
       weekday: 'short',
@@ -28,6 +39,17 @@ const RideCard: React.FC<{ ride: Ride; onPress: () => void }> = ({ ride, onPress
       minute: '2-digit',
     }).format(date);
   };
+
+  const calculateDistance = () => {
+    if (!userLocation) return null;
+    const distanceKm = distanceBetween(
+      [userLocation.latitude, userLocation.longitude],
+      [ride.origin.latitude, ride.origin.longitude]
+    );
+    return distanceKm < 1 ? `${(distanceKm * 1000).toFixed(0)}m` : `${distanceKm.toFixed(1)}km`;
+  };
+
+  const distance = calculateDistance();
 
   return (
     <TouchableOpacity style={styles.rideCard} onPress={onPress}>
@@ -54,6 +76,13 @@ const RideCard: React.FC<{ ride: Ride; onPress: () => void }> = ({ ride, onPress
             {ride.availableSeats} seat{ride.availableSeats !== 1 ? 's' : ''} available
           </Text>
         </View>
+
+        {distance && (
+          <View style={styles.detailItem}>
+            <Ionicons name="location-outline" size={16} color="#10b981" />
+            <Text style={[styles.detailText, { color: '#10b981' }]}>{distance} away</Text>
+          </View>
+        )}
       </View>
 
       {ride.driver && (
@@ -103,9 +132,19 @@ const RideCard: React.FC<{ ride: Ride; onPress: () => void }> = ({ ride, onPress
 
 const HomeScreen: React.FC = () => {
   const { userProfile } = useUser();
+  const { user } = useAuth();
+  const navigation = useNavigation<HomeScreenNavigationProp>();
+  const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState<LocationType | null>(null);
   const [locationPermission, setLocationPermission] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    genderPreference: 'any' as 'any' | 'female_only' | 'male_only',
+    verifiedOnly: false,
+    maxPrice: 1000,
+  });
 
   // Request location permission and get current location
   useEffect(() => {
@@ -133,7 +172,7 @@ const HomeScreen: React.FC = () => {
     requestLocationPermission();
   }, []);
 
-  // Fetch rides based on location or general query
+  // Real-time rides with location-based sorting
   const {
     data: rides,
     isLoading,
@@ -143,20 +182,58 @@ const HomeScreen: React.FC = () => {
     queryKey: ['rides', userLocation, searchQuery],
     queryFn: () => {
       if (userLocation && !searchQuery) {
-        return getRidesNearLocation(userLocation, 10); // 10km radius
+        return getRidesNearLocation(userLocation, 15); // 15km radius
       }
       return getRides({ searchQuery });
     },
     enabled: !!userProfile,
-    staleTime: 2 * 60 * 1000, // 2 minutes
+    staleTime: 30 * 1000, // 30 seconds for real-time feel
+    refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
   });
 
+  // Filter and sort rides
+  const filteredRides = useMemo(() => {
+    if (!rides) return [];
+    
+    let filtered = rides.filter((ride) => {
+      // Gender filter
+      if (filters.genderPreference !== 'any' && ride.preferences.genderPreference !== filters.genderPreference) {
+        return false;
+      }
+      
+      // Verified only filter
+      if (filters.verifiedOnly && !ride.driver?.isStudentVerified) {
+        return false;
+      }
+      
+      // Max price filter
+      if (ride.pricePerSeat > filters.maxPrice) {
+        return false;
+      }
+      
+      return true;
+    });
+    
+    // Sort by distance if user location available
+    if (userLocation) {
+      filtered = filtered.sort((a, b) => {
+        const distA = distanceBetween(
+          [userLocation.latitude, userLocation.longitude],
+          [a.origin.latitude, a.origin.longitude]
+        );
+        const distB = distanceBetween(
+          [userLocation.latitude, userLocation.longitude],
+          [b.origin.latitude, b.origin.longitude]
+        );
+        return distA - distB;
+      });
+    }
+    
+    return filtered;
+  }, [rides, filters, userLocation]);
+
   const handleRidePress = (ride: Ride) => {
-    // TODO: Navigate to ride details screen
-    Alert.alert(
-      'Ride Details',
-      `From: ${ride.origin.address}\nTo: ${ride.destination.address}\nPrice: $${ride.pricePerSeat}\n\nTODO: Open ride details and request ride functionality.`
-    );
+    navigation.navigate('RideDetails', { ride });
   };
 
   const renderEmptyState = () => (
@@ -168,12 +245,9 @@ const HomeScreen: React.FC = () => {
           ? 'Enable location to find nearby rides'
           : searchQuery
           ? 'Try adjusting your search terms'
-          : 'Be the first to post a ride in your area!'
+          : ''
         }
       </Text>
-      <TouchableOpacity style={styles.emptyStateButton}>
-        <Text style={styles.emptyStateButtonText}>Post a Ride</Text>
-      </TouchableOpacity>
     </View>
   );
 
@@ -183,12 +257,20 @@ const HomeScreen: React.FC = () => {
         Welcome back, {userProfile?.firstName}!
       </Text>
       
-      {/* Student verification reminder */}
-      {userProfile && !userProfile.isStudentVerified && (
-        <TouchableOpacity style={styles.verificationReminder}>
+      {/* Email and Student verification reminder */}
+      {(!userProfile?.isVerified || !userProfile?.isStudentVerified) && (
+        <TouchableOpacity 
+          style={styles.verificationReminder}
+          onPress={() => navigation.navigate('AccountVerification')}
+          activeOpacity={0.7}
+        >
           <Ionicons name="shield-outline" size={20} color="#f56565" />
           <Text style={styles.verificationText}>
-            Verify your student status to access all rides
+            {!userProfile?.isVerified && !userProfile?.isStudentVerified
+              ? 'Verify your email and student status to unlock all features'
+              : !userProfile?.isVerified
+              ? 'Verify your email to unlock all features'
+              : 'Verify your student status to access all rides'}
           </Text>
           <Ionicons name="chevron-forward" size={16} color="#f56565" />
         </TouchableOpacity>
@@ -236,24 +318,205 @@ const HomeScreen: React.FC = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <FlatList
-        data={rides || []}
-        renderItem={({ item }) => (
-          <RideCard ride={item} onPress={() => handleRidePress(item)} />
-        )}
-        keyExtractor={(item) => item.id}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={!isLoading ? renderEmptyState : null}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetch} />
-        }
-        contentContainerStyle={[
-          styles.listContainer,
-          (!rides || rides.length === 0) && styles.listContainerEmpty,
-        ]}
-        showsVerticalScrollIndicator={false}
-      />
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* View Toggle and Filter Buttons */}
+      <View style={styles.actionBar}>
+        <View style={styles.viewToggle}>
+          <TouchableOpacity
+            style={[styles.viewButton, viewMode === 'list' && styles.viewButtonActive]}
+            onPress={() => setViewMode('list')}
+          >
+            <Ionicons name="list" size={20} color={viewMode === 'list' ? '#fff' : '#718096'} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.viewButton, viewMode === 'map' && styles.viewButtonActive]}
+            onPress={() => setViewMode('map')}
+          >
+            <Ionicons name="map" size={20} color={viewMode === 'map' ? '#fff' : '#718096'} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={() => setShowFilters(true)}
+        >
+          <Ionicons name="options" size={20} color="#3182ce" />
+          <Text style={styles.filterButtonText}>Filters</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* List View */}
+      {viewMode === 'list' && (
+        <FlatList
+          data={filteredRides}
+          renderItem={({ item }) => (
+            <RideCard ride={item} onPress={() => handleRidePress(item)} userLocation={userLocation || undefined} />
+          )}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={!isLoading ? renderEmptyState : null}
+          refreshControl={
+            <RefreshControl refreshing={isLoading} onRefresh={refetch} />
+          }
+          contentContainerStyle={[
+            styles.listContainer,
+            (!filteredRides || filteredRides.length === 0) && styles.listContainerEmpty,
+          ]}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
+
+      {/* Map View */}
+      {viewMode === 'map' && userLocation && (
+        <MapView
+          style={styles.map}
+          provider={PROVIDER_GOOGLE}
+          initialRegion={{
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            latitudeDelta: 0.1,
+            longitudeDelta: 0.1,
+          }}
+          showsUserLocation
+          showsMyLocationButton
+        >
+          {filteredRides.map((ride) => (
+            <Marker
+              key={ride.id}
+              coordinate={{
+                latitude: ride.origin.latitude,
+                longitude: ride.origin.longitude,
+              }}
+              title={`${ride.origin.address} → ${ride.destination.address}`}
+              description={`$${ride.pricePerSeat} • ${ride.availableSeats} seats`}
+              onCalloutPress={() => handleRidePress(ride)}
+            >
+              <View style={styles.markerContainer}>
+                <Ionicons name="car" size={24} color="#3182ce" />
+              </View>
+              <Callout>
+                <View style={styles.calloutContainer}>
+                  <Text style={styles.calloutTitle}>
+                    {ride.origin.address} → {ride.destination.address}
+                  </Text>
+                  <Text style={styles.calloutPrice}>${ride.pricePerSeat}/seat</Text>
+                  <Text style={styles.calloutSeats}>{ride.availableSeats} seats available</Text>
+                </View>
+              </Callout>
+            </Marker>
+          ))}
+        </MapView>
+      )}
+
+      {/* Filter Modal */}
+      <Modal
+        visible={showFilters}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowFilters(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter Rides</Text>
+              <TouchableOpacity onPress={() => setShowFilters(false)}>
+                <Ionicons name="close" size={24} color="#1a365d" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent}>
+              {/* Gender Preference */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterLabel}>Gender Preference</Text>
+                <View style={styles.filterButtons}>
+                  <TouchableOpacity
+                    style={[styles.filterChip, filters.genderPreference === 'any' && styles.filterChipActive]}
+                    onPress={() => setFilters({ ...filters, genderPreference: 'any' })}
+                  >
+                    <Text style={[styles.filterChipText, filters.genderPreference === 'any' && styles.filterChipTextActive]}>
+                      Any
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterChip, filters.genderPreference === 'female_only' && styles.filterChipActive]}
+                    onPress={() => setFilters({ ...filters, genderPreference: 'female_only' })}
+                  >
+                    <Text style={[styles.filterChipText, filters.genderPreference === 'female_only' && styles.filterChipTextActive]}>
+                      Female Only
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterChip, filters.genderPreference === 'male_only' && styles.filterChipActive]}
+                    onPress={() => setFilters({ ...filters, genderPreference: 'male_only' })}
+                  >
+                    <Text style={[styles.filterChipText, filters.genderPreference === 'male_only' && styles.filterChipTextActive]}>
+                      Male Only
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Verified Drivers Only */}
+              <View style={styles.filterSection}>
+                <View style={styles.filterRow}>
+                  <View>
+                    <Text style={styles.filterLabel}>Verified Drivers Only</Text>
+                    <Text style={styles.filterHelp}>Show only student-verified drivers</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.toggle, filters.verifiedOnly && styles.toggleActive]}
+                    onPress={() => setFilters({ ...filters, verifiedOnly: !filters.verifiedOnly })}
+                  >
+                    <View style={[styles.toggleThumb, filters.verifiedOnly && styles.toggleThumbActive]} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Max Price */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterLabel}>Maximum Price per Seat</Text>
+                <Text style={styles.priceValue}>${filters.maxPrice}</Text>
+                <View style={styles.priceButtons}>
+                  {[200, 500, 1000, 2000].map((price) => (
+                    <TouchableOpacity
+                      key={price}
+                      style={[styles.priceChip, filters.maxPrice === price && styles.priceChipActive]}
+                      onPress={() => setFilters({ ...filters, maxPrice: price })}
+                    >
+                      <Text style={[styles.priceChipText, filters.maxPrice === price && styles.priceChipTextActive]}>
+                        ${price}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Reset Button */}
+              <TouchableOpacity
+                style={styles.resetButton}
+                onPress={() => setFilters({
+                  genderPreference: 'any',
+                  verifiedOnly: false,
+                  maxPrice: 1000,
+                })}
+              >
+                <Text style={styles.resetButtonText}>Reset Filters</Text>
+              </TouchableOpacity>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.applyButton}
+                onPress={() => setShowFilters(false)}
+              >
+                <Text style={styles.applyButtonText}>
+                  Apply Filters ({filteredRides.length} rides)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -270,13 +533,14 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    paddingVertical: 20,
+    paddingVertical: 24,
   },
   welcomeText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a365d',
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#0f172a',
     marginBottom: 16,
+    letterSpacing: -0.5,
   },
   verificationReminder: {
     flexDirection: 'row',
@@ -297,12 +561,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
     marginBottom: 16,
+    shadowColor: '#64748b',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#f1f5f9',
   },
   searchIcon: {
     marginRight: 12,
@@ -332,11 +601,16 @@ const styles = StyleSheet.create({
   },
   rideCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#f1f5f9',
   },
   rideHeader: {
     flexDirection: 'row',
@@ -351,18 +625,24 @@ const styles = StyleSheet.create({
   routeText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1a365d',
+    color: '#0f172a',
+    lineHeight: 22,
   },
   priceContainer: {
-    backgroundColor: '#e6fffa',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    backgroundColor: '#d1fae5',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
   priceText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#00a693',
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#047857',
   },
   rideDetails: {
     marginBottom: 12,
@@ -486,6 +766,226 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  actionBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#f7fafc',
+    borderRadius: 8,
+    padding: 2,
+  },
+  viewButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  viewButtonActive: {
+    backgroundColor: '#3182ce',
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#ebf8ff',
+    borderRadius: 8,
+  },
+  filterButtonText: {
+    color: '#3182ce',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  map: {
+    flex: 1,
+  },
+  markerContainer: {
+    backgroundColor: '#fff',
+    padding: 8,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#3182ce',
+  },
+  calloutContainer: {
+    padding: 8,
+    minWidth: 200,
+  },
+  calloutTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a365d',
+    marginBottom: 4,
+  },
+  calloutPrice: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#3182ce',
+    marginBottom: 2,
+  },
+  calloutSeats: {
+    fontSize: 12,
+    color: '#718096',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1a365d',
+  },
+  modalContent: {
+    padding: 20,
+  },
+  filterSection: {
+    marginBottom: 24,
+  },
+  filterLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2d3748',
+    marginBottom: 12,
+  },
+  filterHelp: {
+    fontSize: 12,
+    color: '#718096',
+    marginTop: 2,
+  },
+  filterButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f7fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  filterChipActive: {
+    backgroundColor: '#3182ce',
+    borderColor: '#3182ce',
+  },
+  filterChipText: {
+    fontSize: 14,
+    color: '#4a5568',
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  toggle: {
+    width: 50,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#cbd5e0',
+    padding: 2,
+  },
+  toggleActive: {
+    backgroundColor: '#48bb78',
+  },
+  toggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+  },
+  toggleThumbActive: {
+    marginLeft: 22,
+  },
+  priceValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#3182ce',
+    marginBottom: 12,
+  },
+  priceButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  priceChip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#f7fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  priceChipActive: {
+    backgroundColor: '#ebf8ff',
+    borderColor: '#3182ce',
+  },
+  priceChipText: {
+    fontSize: 16,
+    color: '#4a5568',
+    fontWeight: '600',
+  },
+  priceChipTextActive: {
+    color: '#3182ce',
+  },
+  resetButton: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  resetButtonText: {
+    fontSize: 16,
+    color: '#718096',
+    fontWeight: '600',
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  applyButton: {
+    backgroundColor: '#3182ce',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
