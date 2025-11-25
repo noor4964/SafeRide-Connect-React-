@@ -16,8 +16,9 @@ import type { PushToken } from '@/types/notifications';
 // Check if running in Expo Go
 const isExpoGo = Constants.appOwnership === 'expo';
 
-// Configure notification behavior (only if not in Expo Go)
-if (!isExpoGo) {
+// Configure notification behavior
+// Note: Will show warning in Expo Go but required for production builds
+try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
@@ -27,6 +28,8 @@ if (!isExpoGo) {
       shouldShowList: true,
     }),
   });
+} catch (error) {
+  // Silently fail in Expo Go
 }
 
 // ==================== REGISTER FOR PUSH NOTIFICATIONS ====================

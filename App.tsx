@@ -2,11 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, LogBox } from 'react-native';
 import { AuthProvider } from '@/features/auth/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AppNavigator } from '@/navigation';
 import { SplashScreen } from '@/components/SplashScreen';
+
+// Ignore Expo Go push notification warnings (works fine in production builds)
+LogBox.ignoreLogs([
+  'expo-notifications',
+  'Push notifications',
+  'functionality is not fully supported',
+]);
 
 // Create a client for React Query
 const queryClient = new QueryClient({
