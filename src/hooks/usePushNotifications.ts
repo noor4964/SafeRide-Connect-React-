@@ -132,7 +132,9 @@ export const usePushNotifications = (options: UsePushNotificationsOptions) => {
   // Clear all notifications and badge
   const clearAllNotifications = async () => {
     try {
-      await Notifications.dismissAllNotificationsAsync();
+      if (Notifications.dismissAllNotificationsAsync) {
+        await Notifications.dismissAllNotificationsAsync();
+      }
       await clearBadge();
       console.log('✅ All notifications cleared');
     } catch (err) {
@@ -152,6 +154,9 @@ export const usePushNotifications = (options: UsePushNotificationsOptions) => {
 
 export const getLastNotificationResponse = async (): Promise<Record<string, any> | null> => {
   try {
+    if (!Notifications.getLastNotificationResponseAsync) {
+      return null;
+    }
     const response = await Notifications.getLastNotificationResponseAsync();
     return response?.notification.request.content.data || null;
   } catch (error) {

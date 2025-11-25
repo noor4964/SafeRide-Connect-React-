@@ -104,9 +104,25 @@ const PostRequestScreen: React.FC = () => {
   };
 
   const handleTimeChange = (event: any, selectedDate?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios');
-    if (selectedDate) {
-      setDepartureTime(selectedDate);
+    try {
+      // Hide picker on Android after any interaction
+      if (Platform.OS === 'android') {
+        setShowTimePicker(false);
+      }
+      
+      // Update date if one was selected
+      // On Android, event can be undefined when clicking OK
+      if (selectedDate) {
+        // Only skip update if explicitly dismissed
+        if (!event || (event && event.type !== 'dismissed')) {
+          setDepartureTime(selectedDate);
+        }
+      }
+    } catch (error) {
+      console.error('Date picker error:', error);
+      if (Platform.OS === 'android') {
+        setShowTimePicker(false);
+      }
     }
   };
 
