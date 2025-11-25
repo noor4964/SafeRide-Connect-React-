@@ -51,14 +51,12 @@ export const usePushNotifications = (options: UsePushNotificationsOptions) => {
           setIsRegistered(true);
           console.log('✅ Push notifications registered');
         } else {
-          setError('Push notifications not available in Expo Go');
-          console.log('ℹ️ Push notifications disabled (Expo Go limitation)');
-          console.log('ℹ️ In-app notifications will continue to work normally');
+          // Silently handle Expo Go limitation - not an error
+          setIsRegistered(false);
         }
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-        setError(errorMessage);
-        console.error('❌ Push notification registration failed:', err);
+        // Silently handle Expo Go limitation
+        setIsRegistered(false);
       }
     };
 
