@@ -27,9 +27,9 @@ GoogleService-Info.plist
 firebase-debug.log*
 firestore-debug.log*
 
-# Firebase config with real credentials
-# Users must create their own with their Firebase project
-src/config/firebaseConfig.ts
+# Note: firebaseConfig.ts is NOT ignored - it's needed for builds
+# Firebase keys are CLIENT-SIDE keys (safe to commit)
+# Firestore security rules protect your data on the backend
 
 # Build outputs
 *.jks

@@ -16,6 +16,8 @@
     ],
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.saferide.connect",
+      "buildNumber": "1.0.0",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "This app uses location to find nearby rides and provide safety features.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app uses location to track rides and provide emergency assistance."
@@ -29,9 +31,14 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "SEND_SMS",
+        "READ_PHONE_STATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "com.saferide.connect"
+      "package": "com.saferide.connect",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -43,14 +50,17 @@
         {
           "icon": "./assets/notification-icon.png",
           "color": "#3182ce",
-          "sounds": ["./assets/notification-sound.wav"]
+          "sounds": [
+            "./assets/notification-sound.wav"
+          ]
         }
       ]
     ],
     "extra": {
       "eas": {
-        "projectId": "get-from-eas-build"
+        "projectId": "d7a65f93-6522-4df3-905b-730b439bd1bd"
       }
-    }
+    },
+    "owner": "noor4964"
   }
 }
