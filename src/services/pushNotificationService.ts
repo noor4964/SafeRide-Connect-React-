@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import { collection, doc, setDoc, deleteDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { firestore } from '@/config/firebaseConfig';
 import type { PushToken } from '@/types/notifications';
@@ -12,16 +13,21 @@ import type { PushToken } from '@/types/notifications';
  * and sending push notifications via Expo Push Service
  */
 
-// Configure notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
+// Check if running in Expo Go
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Configure notification behavior (only if not in Expo Go)
+if (!isExpoGo) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 // ==================== REGISTER FOR PUSH NOTIFICATIONS ====================
 
@@ -29,9 +35,13 @@ export const registerForPushNotifications = async (
   userId: string
 ): Promise<string | null> => {
   try {
+    // Skip push notifications in Expo Go
+    if (isExpoGo) {
+      return null;
+    }
+
     // Check if device is physical (push notifications don't work on emulators)
     if (!Device.isDevice) {
-      console.log('⚠️ Push notifications only work on physical devices');
       return null;
     }
 
