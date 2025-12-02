@@ -56,9 +56,27 @@ const RideCard: React.FC<{ ride: Ride; onPress: () => void; userLocation?: Locat
 
   const distance = calculateDistance();
 
+  const getTimeUntilDeparture = () => {
+    const now = new Date();
+    const departure = new Date(ride.departureTime);
+    const hoursUntil = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    if (hoursUntil < 1) return { text: 'Leaving soon!', color: '#ef4444' };
+    if (hoursUntil < 3) return { text: 'Leaving in ' + Math.round(hoursUntil) + 'h', color: '#f59e0b' };
+    return null;
+  };
+
+  const timeUrgency = getTimeUntilDeparture();
+
   return (
     <TouchableOpacity style={{ marginBottom: 0 }} onPress={onPress} activeOpacity={0.7}>
       <WebCard hoverable={true}>
+        {timeUrgency && (
+          <View style={[styles.urgencyBadge, { backgroundColor: timeUrgency.color }]}>
+            <Ionicons name="time" size={12} color="#fff" />
+            <Text style={styles.urgencyText}>{timeUrgency.text}</Text>
+          </View>
+        )}
         <View style={styles.rideHeader}>
           <View style={styles.routeContainer}>
             <Text style={styles.routeText} numberOfLines={1}>
@@ -276,9 +294,19 @@ const HomeScreen: React.FC = () => {
           ? 'Enable location to find nearby rides'
           : searchQuery
           ? 'Try adjusting your search terms'
-          : ''
+          : 'Be the first to share a ride! Post your ride request and connect with others.'
         }
       </Text>
+      {!searchQuery && (
+        <TouchableOpacity 
+          style={styles.emptyStateButton}
+          onPress={() => navigation.navigate('PostRequest')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add-circle" size={20} color="#fff" />
+          <Text style={styles.emptyStateButtonText}>Post Ride Request</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -496,13 +524,28 @@ const HomeScreen: React.FC = () => {
       {/* List View */}
       {viewMode === 'list' && (
         <FlatList
-          data={filteredRides}
+          data={isLoading && !rides ? [] : filteredRides}
           renderItem={({ item }) => (
             <RideCard ride={item} onPress={() => handleRidePress(item)} userLocation={userLocation || undefined} />
           )}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={renderHeader}
-          ListEmptyComponent={!isLoading ? renderEmptyState : null}
+          ListEmptyComponent={!isLoading ? renderEmptyState : (
+            <View style={styles.loadingState}>
+              {[1, 2, 3].map((i) => (
+                <View key={i} style={styles.skeletonCard}>
+                  <View style={styles.skeletonHeader}>
+                    <View style={styles.skeletonTextLong} />
+                    <View style={styles.skeletonPrice} />
+                  </View>
+                  <View style={styles.skeletonDetails}>
+                    <View style={styles.skeletonTextShort} />
+                    <View style={styles.skeletonTextShort} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
           refreshControl={
             <RefreshControl refreshing={isLoading} onRefresh={refetch} />
           }
@@ -515,6 +558,27 @@ const HomeScreen: React.FC = () => {
       )}
 
       {/* Map View */}
+      {viewMode === 'map' && !userLocation && (
+        <View style={styles.mapEmptyState}>
+          <Ionicons name="location-outline" size={64} color="#cbd5e0" />
+          <Text style={styles.mapEmptyTitle}>Location Required</Text>
+          <Text style={styles.mapEmptyText}>
+            Enable location permissions to view rides on the map
+          </Text>
+          <TouchableOpacity 
+            style={styles.enableLocationButton}
+            onPress={() => {
+              if (Platform.OS === 'ios') {
+                Linking.openURL('app-settings:');
+              } else {
+                Linking.openSettings();
+              }
+            }}
+          >
+            <Text style={styles.enableLocationButtonText}>Open Settings</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {viewMode === 'map' && userLocation && (
         <WebCompatibleMap
           style={styles.map}
@@ -803,6 +867,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 10,
   },
+  urgencyBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  urgencyText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
   rideCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
@@ -942,12 +1023,83 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   emptyStateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#3182ce',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  emptyStateButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  loadingState: {
+    padding: 16,
+  },
+  skeletonCard: {
+    backgroundColor: '#f7fafc',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
+  },
+  skeletonHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  skeletonTextLong: {
+    flex: 1,
+    height: 16,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 4,
+    marginRight: 12,
+  },
+  skeletonPrice: {
+    width: 60,
+    height: 32,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 8,
+  },
+  skeletonDetails: {
+    gap: 8,
+  },
+  skeletonTextShort: {
+    width: '60%',
+    height: 14,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 4,
+  },
+  mapEmptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    backgroundColor: '#f8f9fa',
+  },
+  mapEmptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2d3748',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  mapEmptyText: {
+    fontSize: 16,
+    color: '#718096',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  enableLocationButton: {
     backgroundColor: '#3182ce',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
-  emptyStateButtonText: {
+  enableLocationButtonText: {
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
