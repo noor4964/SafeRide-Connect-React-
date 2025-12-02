@@ -26,6 +26,8 @@ import {
 import type { NotificationData, NotificationType } from '@/types/notifications';
 import type { MainTabParamList } from '@/types';
 import { useTheme } from '@/context/ThemeContext';
+import { useResponsive } from '@/hooks/useResponsive';
+import { WebLayout, WebCard } from '@/components/WebLayout';
 
 type NotificationsNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Notifications'>;
 
@@ -33,6 +35,7 @@ const NotificationsScreen: React.FC = () => {
   const { user } = useAuth();
   const navigation = useNavigation<NotificationsNavigationProp>();
   const { colors } = useTheme();
+  const { isDesktop } = useResponsive();
   
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,17 +186,19 @@ const NotificationsScreen: React.FC = () => {
     };
 
     return (
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        <TouchableOpacity
-          style={[
-            styles.notificationCard,
-            !item.isRead && styles.unreadCard,
-          ]}
-          onPress={() => handleNotificationPress(item)}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          activeOpacity={1}
-        >
+      <WebCard>
+        <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+          <TouchableOpacity
+            style={[
+              styles.notificationCard,
+              !item.isRead && styles.unreadCard,
+              isDesktop && webStyles.notificationCard,
+            ]}
+            onPress={() => handleNotificationPress(item)}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            activeOpacity={1}
+          >
           <View style={styles.notificationContent}>
             {/* Icon with gradient background */}
             <LinearGradient
@@ -235,8 +240,9 @@ const NotificationsScreen: React.FC = () => {
           >
             <Ionicons name="trash-outline" size={20} color="#94a3b8" />
           </TouchableOpacity>
-        </TouchableOpacity>
-      </Animated.View>
+          </TouchableOpacity>
+        </Animated.View>
+      </WebCard>
     );
   };
 
@@ -267,51 +273,91 @@ const NotificationsScreen: React.FC = () => {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Notifications</Text>
-        {unreadCount > 0 && (
-          <TouchableOpacity style={styles.markAllButton} onPress={handleMarkAllRead}>
-            <Text style={styles.markAllText}>Mark all read</Text>
+    <WebLayout>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }, isDesktop && webStyles.container]}>
+        {/* Header */}
+        <View style={[styles.header, isDesktop && webStyles.header]}>
+          <View>
+            <Text style={[styles.headerTitle, isDesktop && webStyles.headerTitle]}>Notifications</Text>
+            {isDesktop && (
+              <Text style={webStyles.headerSubtitle}>
+                {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
+              </Text>
+            )}
+          </View>
+          {unreadCount > 0 && (
+            <TouchableOpacity style={styles.markAllButton} onPress={handleMarkAllRead}>
+              <Text style={styles.markAllText}>Mark all read</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Filter Tabs */}
+        <View style={[styles.filterContainer, isDesktop && webStyles.filterContainer]}>
+          <TouchableOpacity
+            style={[styles.filterTab, filter === 'all' && styles.activeTab]}
+            onPress={() => setFilter('all')}
+          >
+            <Text style={[styles.filterText, filter === 'all' && styles.activeFilterText]}>
+              All ({notifications.length})
+            </Text>
           </TouchableOpacity>
-        )}
-      </View>
+          <TouchableOpacity
+            style={[styles.filterTab, filter === 'unread' && styles.activeTab]}
+            onPress={() => setFilter('unread')}
+          >
+            <Text style={[styles.filterText, filter === 'unread' && styles.activeFilterText]}>
+              Unread ({unreadCount})
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      {/* Filter Tabs */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'all' && styles.activeTab]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.filterText, filter === 'all' && styles.activeFilterText]}>
-            All ({notifications.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, filter === 'unread' && styles.activeTab]}
-          onPress={() => setFilter('unread')}
-        >
-          <Text style={[styles.filterText, filter === 'unread' && styles.activeFilterText]}>
-            Unread ({unreadCount})
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Notifications List */}
-      <FlatList
-        data={filteredNotifications}
-        renderItem={renderNotification}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={renderEmptyState}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      />
-    </SafeAreaView>
+        {/* Notifications List */}
+        <FlatList
+          data={filteredNotifications}
+          renderItem={renderNotification}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.listContent, isDesktop && webStyles.listContent]}
+          ListEmptyComponent={renderEmptyState}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        />
+      </SafeAreaView>
+    </WebLayout>
   );
 };
+
+const webStyles = StyleSheet.create({
+  container: {
+    backgroundColor: 'transparent',
+  },
+  header: {
+    paddingHorizontal: 32,
+    paddingVertical: 24,
+  },
+  headerTitle: {
+    fontSize: 32,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#718096',
+  },
+  filterContainer: {
+    paddingHorizontal: 32,
+    maxWidth: 600,
+  },
+  listContent: {
+    paddingHorizontal: 32,
+    maxWidth: 900,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  notificationCard: {
+    borderRadius: 12,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {

@@ -14,10 +14,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { WebCompatibleMap, WebCompatibleMarker, PROVIDER_GOOGLE } from '@/components/WebCompatibleMap';
 import { useAuth } from '@/features/auth/context/AuthContext';
-import { getRideMatch } from '@/services/rideMatchingService';
-import { updateDoc, doc } from 'firebase/firestore';
+import { getRideMatch, leaveMatch } from '@/services/rideMatchingService';
+import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { firestore as db } from '@/config/firebaseConfig';
 import type { MainTabParamList } from '@/types';
 import type { RideMatchType } from '@/types/rideMatching';
@@ -41,14 +41,30 @@ const MatchDetailsScreen: React.FC = () => {
   const {
     data: match,
     isLoading,
+    error,
     refetch,
   } = useQuery({
     queryKey: ['rideMatch', matchId],
-    queryFn: () => getRideMatch(matchId),
+    queryFn: async () => {
+      console.log('🔍 Fetching match details for:', matchId);
+      const result = await getRideMatch(matchId);
+      console.log('📦 Match data received:', result ? 'Success' : 'Null', result?.participants?.length, 'participants');
+      return result;
+    },
     enabled: !!matchId,
     staleTime: 10 * 1000,
     refetchInterval: 10 * 1000, // Poll every 10 seconds
+    retry: 3, // Retry up to 3 times
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff: 1s, 2s, 4s
   });
+
+  // Debug logging
+  useEffect(() => {
+    console.log('Match Details Screen - matchId:', matchId);
+    console.log('Match Details Screen - isLoading:', isLoading);
+    console.log('Match Details Screen - match:', match ? 'exists' : 'null');
+    console.log('Match Details Screen - error:', error);
+  }, [matchId, isLoading, match, error]);
 
   const currentUserParticipant = match?.participants.find(
     (p) => p.userId === user?.uid
@@ -69,10 +85,19 @@ const MatchDetailsScreen: React.FC = () => {
       // Update status to confirmed if all participants have confirmed
       const allConfirmed = updatedConfirmations.length === match.participants.length;
       
-      await updateDoc(doc(db, 'rideMatches', matchId), {
+      const updateData: any = {
         confirmations: updatedConfirmations,
         status: allConfirmed ? 'confirmed' : match.status,
-      });
+        updatedAt: serverTimestamp(),
+      };
+
+      // If all confirmed, finalize cost and set confirmation timestamp
+      if (allConfirmed) {
+        updateData.finalCostPerPerson = match.costPerPerson;
+        updateData.confirmedAt = serverTimestamp();
+      }
+      
+      await updateDoc(doc(db, 'rideMatches', matchId), updateData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['rideMatch', matchId] });
@@ -83,6 +108,41 @@ const MatchDetailsScreen: React.FC = () => {
       Alert.alert('Error', 'Failed to confirm match. Please try again.');
     },
   });
+
+  // Leave match mutation
+  const leaveMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error('User not found');
+      await leaveMatch(matchId, user.uid);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['rideMatch', matchId] });
+      queryClient.invalidateQueries({ queryKey: ['userRideRequests'] });
+      Alert.alert(
+        'Left Match',
+        'You have left this match. Your request is now searching for new matches.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+    },
+    onError: (error: any) => {
+      Alert.alert('Error', error.message || 'Failed to leave match. Please try again.');
+    },
+  });
+
+  const handleLeaveMatch = () => {
+    Alert.alert(
+      'Leave Match?',
+      'Are you sure you want to leave this match? Other participants will be notified and the cost will be recalculated.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: () => leaveMutation.mutate(),
+        },
+      ]
+    );
+  };
 
   const handleCallParticipant = (phoneNumber?: string) => {
     if (!phoneNumber) {
@@ -119,11 +179,45 @@ const MatchDetailsScreen: React.FC = () => {
     }
   };
 
-  if (isLoading || !match) {
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3182ce" />
         <Text style={styles.loadingText}>Loading match details...</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="alert-circle" size={48} color="#ef4444" />
+        <Text style={[styles.loadingText, { color: '#ef4444', marginTop: 16 }]}>
+          Failed to load match details
+        </Text>
+        <TouchableOpacity
+          style={[styles.confirmButton, { marginTop: 16, paddingHorizontal: 24 }]}
+          onPress={() => refetch()}
+        >
+          <Text style={styles.confirmButtonText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!match) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="alert-circle" size={48} color="#f59e0b" />
+        <Text style={[styles.loadingText, { color: '#f59e0b', marginTop: 16 }]}>
+          Match not found
+        </Text>
+        <TouchableOpacity
+          style={[styles.confirmButton, { marginTop: 16, paddingHorizontal: 24 }]}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.confirmButtonText}>Go Back</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -151,7 +245,7 @@ const MatchDetailsScreen: React.FC = () => {
 
       {/* Map */}
       <View style={styles.mapContainer}>
-        <MapView
+        <WebCompatibleMap
           style={styles.map}
           provider={PROVIDER_GOOGLE}
           initialRegion={{
@@ -161,9 +255,19 @@ const MatchDetailsScreen: React.FC = () => {
             longitudeDelta: 0.02,
           }}
           onMapReady={() => setMapReady(true)}
+          fallbackMessage="🗺️ Interactive map available on mobile"
+          fallbackButton={{
+            text: "Open in Google Maps",
+            onPress: () => {
+              const url = `https://www.google.com/maps/dir/${match.meetingPoint.latitude},${match.meetingPoint.longitude}/${match.dropoffPoint.latitude},${match.dropoffPoint.longitude}`;
+              if (typeof window !== 'undefined') {
+                window.open(url, '_blank');
+              }
+            }
+          }}
         >
           {/* Meeting Point */}
-          <Marker
+          <WebCompatibleMarker
             coordinate={{
               latitude: match.meetingPoint.latitude,
               longitude: match.meetingPoint.longitude,
@@ -174,10 +278,10 @@ const MatchDetailsScreen: React.FC = () => {
             <View style={styles.meetingMarker}>
               <Ionicons name="location" size={24} color="#10b981" />
             </View>
-          </Marker>
+          </WebCompatibleMarker>
 
           {/* Drop-off Point */}
-          <Marker
+          <WebCompatibleMarker
             coordinate={{
               latitude: match.dropoffPoint.latitude,
               longitude: match.dropoffPoint.longitude,
@@ -188,8 +292,8 @@ const MatchDetailsScreen: React.FC = () => {
             <View style={styles.dropoffMarker}>
               <Ionicons name="flag" size={24} color="#ef4444" />
             </View>
-          </Marker>
-        </MapView>
+          </WebCompatibleMarker>
+        </WebCompatibleMap>
       </View>
 
       {/* Participants */}
@@ -406,6 +510,24 @@ const MatchDetailsScreen: React.FC = () => {
           <Ionicons name="share-social" size={20} color="#3182ce" />
           <Text style={styles.shareButtonText}>Share with Emergency Contacts</Text>
         </TouchableOpacity>
+
+        {/* Leave Match Button (only if not completed/riding) */}
+        {match.status !== 'completed' && match.status !== 'riding' && (
+          <TouchableOpacity
+            style={styles.leaveButton}
+            onPress={handleLeaveMatch}
+            disabled={leaveMutation.isPending}
+          >
+            {leaveMutation.isPending ? (
+              <ActivityIndicator color="#ef4444" size="small" />
+            ) : (
+              <>
+                <Ionicons name="exit-outline" size={20} color="#ef4444" />
+                <Text style={styles.leaveButtonText}>Leave Match</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Safety Tips */}
@@ -742,6 +864,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#047857',
     lineHeight: 20,
+  },
+  leaveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    gap: 8,
+    marginTop: 8,
+  },
+  leaveButtonText: {
+    color: '#ef4444',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

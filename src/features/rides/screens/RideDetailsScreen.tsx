@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { Ride, MainTabParamList } from '@/types';
-import { createRideRequest } from '../services/rideRequestService';
+import { createRideRequest, hasUserRequestedRide } from '../services/rideRequestService';
 
 type RideDetailsRouteProp = RouteProp<MainTabParamList, 'RideDetails'>;
 type RideDetailsNavigationProp = BottomTabNavigationProp<MainTabParamList>;
@@ -27,10 +27,30 @@ const RideDetailsScreen: React.FC = () => {
   
   const [seatsRequested, setSeatsRequested] = useState(1);
   const [isRequesting, setIsRequesting] = useState(false);
+  const [hasRequested, setHasRequested] = useState(false);
+  const [isCheckingRequest, setIsCheckingRequest] = useState(true);
 
   const isDriver = ride.driverId === user?.uid;
-  const hasRequested = false; // TODO: Check if user has already requested
   const isVerified = userProfile?.isVerified && userProfile?.isStudentVerified;
+
+  // Check if user has already requested this ride
+  useEffect(() => {
+    const checkRequest = async () => {
+      if (user?.uid && ride.id && !isDriver) {
+        try {
+          const requested = await hasUserRequestedRide(ride.id, user.uid);
+          setHasRequested(requested);
+        } catch (error) {
+          console.error('Error checking request status:', error);
+        } finally {
+          setIsCheckingRequest(false);
+        }
+      } else {
+        setIsCheckingRequest(false);
+      }
+    };
+    checkRequest();
+  }, [user, ride.id, isDriver]);
 
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {

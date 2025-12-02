@@ -48,6 +48,8 @@ export const UserSchema = z.object({
   phoneNumber: z.string().min(10, 'Valid phone number required'),
   university: z.string().min(1, 'University is required'),
   studentId: z.string().optional(),
+  department: z.string().optional(),
+  gender: z.enum(['male', 'female', 'other']).optional(),
   isVerified: z.boolean().default(false),
   isStudentVerified: z.boolean().default(false),
   isPhoneVerified: z.boolean().default(false),

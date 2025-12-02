@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { MainTabParamList } from '@/types';
+
+// Only import expo-notifications on native platforms
+const Notifications = Platform.OS !== 'web' ? require('expo-notifications') : null;
+
 import {
   registerForPushNotifications,
   deletePushToken,
@@ -35,8 +38,20 @@ export const usePushNotifications = (options: UsePushNotificationsOptions) => {
   const [error, setError] = useState<string | null>(null);
   const [isRegistered, setIsRegistered] = useState(false);
 
-  const notificationListener = useRef<Notifications.Subscription | null>(null);
-  const responseListener = useRef<Notifications.Subscription | null>(null);
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
+
+  // Skip push notifications on web platform
+  if (Platform.OS === 'web') {
+    return {
+      expoPushToken: null,
+      isRegistered: false,
+      error: null,
+      clearAllNotifications: async () => {
+        console.log('ℹ️ Push notifications not supported on web');
+      },
+    };
+  }
 
   // Register for push notifications on mount
   useEffect(() => {
@@ -131,8 +146,13 @@ export const usePushNotifications = (options: UsePushNotificationsOptions) => {
 
   // Clear all notifications and badge
   const clearAllNotifications = async () => {
+    if (Platform.OS === 'web' || !Notifications) return;
+    
     try {
-      if (Notifications.dismissAllNotificationsAsync) {
+      // More robust check for Notifications object and method
+      if (Notifications && 
+          typeof Notifications === 'object' && 
+          typeof Notifications.dismissAllNotificationsAsync === 'function') {
         await Notifications.dismissAllNotificationsAsync();
       }
       await clearBadge();
@@ -153,8 +173,13 @@ export const usePushNotifications = (options: UsePushNotificationsOptions) => {
 // ==================== GET LAST NOTIFICATION DATA ====================
 
 export const getLastNotificationResponse = async (): Promise<Record<string, any> | null> => {
+  if (Platform.OS === 'web') return null;
+  
   try {
-    if (!Notifications.getLastNotificationResponseAsync) {
+    // More robust check for Notifications object and method
+    if (!Notifications || 
+        typeof Notifications !== 'object' || 
+        typeof Notifications.getLastNotificationResponseAsync !== 'function') {
       return null;
     }
     const response = await Notifications.getLastNotificationResponseAsync();

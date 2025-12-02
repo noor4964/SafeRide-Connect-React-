@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, RouteProp } from '@react-navigation/native';
@@ -164,7 +165,23 @@ const GroupChatScreen: React.FC = () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to share location');
+        Alert.alert(
+          '📍 Location Permission Required',
+          'Sharing your location in chat requires location access. Enable it in settings to share your location with ride participants.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              }
+            },
+          ]
+        );
         setSendingLocation(false);
         return;
       }
@@ -174,9 +191,25 @@ const GroupChatScreen: React.FC = () => {
 
       // Reverse geocode to get address
       const addressResults = await Location.reverseGeocodeAsync({ latitude, longitude });
-      const address = addressResults[0]
-        ? `${addressResults[0].street || ''}, ${addressResults[0].city || ''}`
-        : `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      let address = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+      
+      if (addressResults[0]) {
+        const addr = addressResults[0];
+        
+        // Filter out Plus Codes
+        const isPlusCode = (str: string) => str && str.includes('+');
+        
+        const parts = [
+          !isPlusCode(addr.name) ? addr.name : null,
+          addr.street,
+          addr.district,
+          addr.city,
+        ].filter(Boolean);
+        
+        if (parts.length > 0) {
+          address = parts.slice(0, 2).join(', '); // Take first 2 parts
+        }
+      }
 
       await sendMessage('location', `Shared location: ${address}`, {
         latitude,

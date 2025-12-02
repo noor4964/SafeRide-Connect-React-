@@ -17,11 +17,17 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as Location from 'expo-location';
+import { useNavigation } from '@react-navigation/native';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { PostRideFormSchema, PostRideForm, LocationWithAddress } from '@/types';
 import { useCreateRide } from '@/features/rides/hooks/useRides';
 import { geocodeAddress } from '@/utils/locationUtils';
+import { MainTabParamList } from '@/types';
+
+type PostRideNavigationProp = BottomTabNavigationProp<MainTabParamList>;
 
 const PostRideScreen: React.FC = () => {
+  const navigation = useNavigation<PostRideNavigationProp>();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,7 +77,26 @@ const PostRideScreen: React.FC = () => {
           });
           
           if (address.length > 0) {
-            const currentAddress = `${address[0].street || ''} ${address[0].city || ''}, ${address[0].region || ''}`.trim();
+            const addr = address[0];
+            
+            // Filter out Plus Codes (like "RC9F+VXV")
+            const isPlusCode = (str: string) => str && str.includes('+');
+            
+            // Build address from available parts, filtering out empty values and Plus Codes
+            const addressParts = [
+              !isPlusCode(addr.name) ? addr.name : null,
+              addr.street,
+              addr.streetNumber,
+              addr.district,
+              addr.subregion,
+              addr.city,
+              addr.region,
+            ].filter(Boolean);
+            
+            const currentAddress = addressParts.length > 0
+              ? addressParts.slice(0, 3).join(', ')
+              : `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`;
+            
             setValue('originAddress', currentAddress);
             setOriginLocation({
               latitude: location.coords.latitude,
@@ -96,12 +121,26 @@ const PostRideScreen: React.FC = () => {
       if (location) {
         if (field === 'originAddress') {
           setOriginLocation(location);
+          console.log('Origin location set:', location);
         } else {
           setDestinationLocation(location);
+          console.log('Destination location set:', location);
         }
+      } else {
+        console.warn(`Failed to geocode ${field}:`, value);
+        Alert.alert(
+          'Location Not Found',
+          `Could not find "${value}". Please enter a more specific address.`,
+          [{ text: 'OK' }]
+        );
       }
     } catch (error) {
       console.error('Error geocoding address:', error);
+      Alert.alert(
+        'Geocoding Error',
+        'Failed to find location. Please check your address and try again.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -125,11 +164,12 @@ const PostRideScreen: React.FC = () => {
         'Your ride has been posted successfully. Students can now request to join your ride.',
         [
           {
-            text: 'OK',
+            text: 'View Rides',
             onPress: () => {
               reset();
               setOriginLocation(null);
               setDestinationLocation(null);
+              navigation.navigate('Home');
             },
           },
         ]

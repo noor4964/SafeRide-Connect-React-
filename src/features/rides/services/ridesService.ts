@@ -188,7 +188,9 @@ export const getRidesNearLocation = async (
   try {
     // Generate geohash bounds for the specified radius
     const centerGeohash = generateGeohash(location);
-    const precision = Math.max(1, Math.min(9, Math.floor(9 - Math.log10(radiusKm))));
+    // More forgiving precision calculation
+    // 5 chars ≈ ±2.4km, 4 chars ≈ ±20km, 6 chars ≈ ±0.6km
+    const precision = radiusKm <= 2 ? 6 : radiusKm <= 10 ? 5 : 4;
     const geohashPrefix = centerGeohash.substring(0, precision);
     
     // Query rides where origin geohash starts with the prefix

@@ -11,6 +11,8 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useResponsive } from '@/hooks/useResponsive';
+import { WebLayout, WebCard } from '@/components/WebLayout';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
@@ -26,6 +28,7 @@ const SafetyScreen: React.FC = () => {
   const navigation = useNavigation<SafetyNavigationProp>();
   const { user, userProfile } = useAuth();
   const { colors } = useTheme();
+  const { isDesktop } = useResponsive();
 
   const [sosPressed, setSosPressed] = useState(false);
   const [shareLocation, setShareLocation] = useState(false);
@@ -70,7 +73,24 @@ const SafetyScreen: React.FC = () => {
               // Get current location
               const { status } = await Location.requestForegroundPermissionsAsync();
               if (status !== 'granted') {
-                Alert.alert('Error', 'Location permission is required for SOS alerts');
+                Alert.alert(
+                  '🚨 Location Permission Required',
+                  'SOS alerts require your location to send to emergency contacts. Please enable location permission.',
+                  [
+                    { text: 'Cancel', style: 'cancel', onPress: () => setSosPressed(false) },
+                    { 
+                      text: 'Open Settings', 
+                      onPress: () => {
+                        setSosPressed(false);
+                        if (Platform.OS === 'ios') {
+                          Linking.openURL('app-settings:');
+                        } else {
+                          Linking.openSettings();
+                        }
+                      }
+                    },
+                  ]
+                );
                 setSosPressed(false);
                 return;
               }
@@ -106,7 +126,23 @@ const SafetyScreen: React.FC = () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Location permission is needed to share your location');
+        Alert.alert(
+          '📍 Location Permission Required',
+          'Location sharing requires access to your current location. Please enable it in settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Settings', 
+              onPress: () => {
+                if (Platform.OS === 'ios') {
+                  Linking.openURL('app-settings:');
+                } else {
+                  Linking.openSettings();
+                }
+              }
+            },
+          ]
+        );
         return;
       }
 
@@ -140,33 +176,44 @@ const SafetyScreen: React.FC = () => {
   const hasEmergencyContacts = userProfile?.emergencyContacts && userProfile.emergencyContacts.length > 0;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Ionicons name="shield-checkmark" size={48} color="#3182ce" />
-          <Text style={[styles.title, { color: colors.text }]}>Safety Center</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Your safety is our priority
-          </Text>
-        </View>
+    <WebLayout>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }, isDesktop && webStyles.container]} edges={['top']}>
+        <ScrollView contentContainerStyle={[styles.content, isDesktop && webStyles.content]}>
+          {/* Header */}
+          {isDesktop && (
+            <View style={webStyles.header}>
+              <Text style={webStyles.headerTitle}>Safety Center</Text>
+              <Text style={webStyles.headerSubtitle}>Your safety is our priority</Text>
+            </View>
+          )}
 
-        {/* SOS Button */}
-        <Animated.View style={[styles.sosContainer, { transform: [{ scale: pulseAnimation }] }]}>
-          <TouchableOpacity
-            style={[styles.sosButton, sosPressed && styles.sosButtonPressed]}
-            onPress={handleSOSPress}
-            disabled={sosPressed}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="alert-circle" size={80} color="#ffffff" />
-            <Text style={styles.sosButtonText}>SOS</Text>
-            <Text style={styles.sosButtonSubtext}>Tap to alert emergency contacts</Text>
-          </TouchableOpacity>
-        </Animated.View>
+          {!isDesktop && (
+            <View style={styles.header}>
+              <Ionicons name="shield-checkmark" size={48} color="#3182ce" />
+              <Text style={[styles.title, { color: colors.text }]}>Safety Center</Text>
+              <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                Your safety is our priority
+              </Text>
+            </View>
+          )}
 
-        {/* Emergency Contacts Status */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          {/* SOS Button */}
+          <Animated.View style={[styles.sosContainer, isDesktop && webStyles.sosContainer, { transform: [{ scale: pulseAnimation }] }]}>
+            <TouchableOpacity
+              style={[styles.sosButton, isDesktop && webStyles.sosButton, sosPressed && styles.sosButtonPressed]}
+              onPress={handleSOSPress}
+              disabled={sosPressed}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="alert-circle" size={isDesktop ? 100 : 80} color="#ffffff" />
+              <Text style={[styles.sosButtonText, isDesktop && webStyles.sosButtonText]}>SOS</Text>
+              <Text style={[styles.sosButtonSubtext, isDesktop && webStyles.sosButtonSubtext]}>Tap to alert emergency contacts</Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Emergency Contacts Status */}
+          <WebCard>
+            <View style={[styles.card, { backgroundColor: colors.surface }, isDesktop && webStyles.card]}>
           <View style={styles.cardHeader}>
             <Ionicons 
               name={hasEmergencyContacts ? "people" : "people-outline"} 
@@ -216,10 +263,12 @@ const SafetyScreen: React.FC = () => {
             <Ionicons name="settings-outline" size={18} color="#3182ce" />
             <Text style={styles.manageButtonText}>Manage Contacts</Text>
           </TouchableOpacity>
-        </View>
+            </View>
+          </WebCard>
 
-        {/* Location Sharing */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          {/* Location Sharing */}
+          <WebCard>
+            <View style={[styles.card, { backgroundColor: colors.surface }, isDesktop && webStyles.card]}>
           <View style={styles.cardHeader}>
             <Ionicons name="location" size={24} color="#3182ce" />
             <Text style={[styles.cardTitle, { color: colors.text }]}>Location Sharing</Text>
@@ -262,10 +311,12 @@ const SafetyScreen: React.FC = () => {
               thumbColor={autoShareOnRide ? '#3182ce' : '#f4f4f5'}
             />
           </View>
-        </View>
+            </View>
+          </WebCard>
 
-        {/* Emergency Hotlines */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          {/* Emergency Hotlines */}
+          <WebCard>
+            <View style={[styles.card, { backgroundColor: colors.surface }, isDesktop && webStyles.card]}>
           <View style={styles.cardHeader}>
             <Ionicons name="call" size={24} color="#ef4444" />
             <Text style={[styles.cardTitle, { color: colors.text }]}>Emergency Hotlines</Text>
@@ -288,10 +339,12 @@ const SafetyScreen: React.FC = () => {
               </TouchableOpacity>
             ))}
           </View>
-        </View>
+            </View>
+          </WebCard>
 
-        {/* Safety Tips */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          {/* Safety Tips */}
+          <WebCard>
+            <View style={[styles.card, { backgroundColor: colors.surface }, isDesktop && webStyles.card]}>
           <View style={styles.cardHeader}>
             <Ionicons name="information-circle" size={24} color="#3182ce" />
             <Text style={[styles.cardTitle, { color: colors.text }]}>Safety Tips</Text>
@@ -311,26 +364,84 @@ const SafetyScreen: React.FC = () => {
               </View>
             ))}
           </View>
-        </View>
+            </View>
+          </WebCard>
 
-        {/* Ride Verification */}
-        <TouchableOpacity
-          style={[styles.card, { backgroundColor: colors.surface }]}
-          onPress={() => navigation.navigate('RideVerification')}
-        >
-          <View style={styles.cardHeader}>
-            <Ionicons name="key" size={24} color="#8b5cf6" />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Ride Verification Code</Text>
-            <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
-          </View>
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            Use verification codes to confirm rider identity before starting your trip
-          </Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+          {/* Ride Verification */}
+          <WebCard>
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: colors.surface }, isDesktop && webStyles.card]}
+              onPress={() => navigation.navigate('RideVerification')}
+            >
+              <View style={styles.cardHeader}>
+                <Ionicons name="key" size={24} color="#8b5cf6" />
+                <Text style={[styles.cardTitle, { color: colors.text }]}>Ride Verification Code</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />
+              </View>
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                Use verification codes to confirm rider identity before starting your trip
+              </Text>
+            </TouchableOpacity>
+          </WebCard>
+        </ScrollView>
+      </SafeAreaView>
+    </WebLayout>
   );
 };
+
+const webStyles = StyleSheet.create({
+  container: {
+    backgroundColor: 'transparent',
+  },
+  content: {
+    padding: 32,
+    maxWidth: 1000,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  header: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 32,
+    paddingVertical: 24,
+    borderRadius: 16,
+    marginBottom: 32,
+    alignItems: 'center',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  headerTitle: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#1a202c',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 18,
+    color: '#718096',
+  },
+  sosContainer: {
+    marginBottom: 32,
+  },
+  sosButton: {
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+  },
+  sosButtonText: {
+    fontSize: 42,
+    fontWeight: 'bold',
+  },
+  sosButtonSubtext: {
+    fontSize: 16,
+  },
+  card: {
+    borderRadius: 12,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {

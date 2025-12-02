@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,13 +19,15 @@ import { useQuery } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { useNavigation } from '@react-navigation/native';
 import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import MapView, { Marker, PROVIDER_GOOGLE, Callout } from 'react-native-maps';
+import { WebCompatibleMap, WebCompatibleMarker, WebCompatibleCallout, PROVIDER_GOOGLE } from '@/components/WebCompatibleMap';
 import { distanceBetween } from 'geofire-common';
 import { useUser } from '@/features/auth/hooks/useUser';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { getRides, getRidesNearLocation } from '@/features/rides/services/ridesService';
 import { Ride, Location as LocationType, MainTabParamList } from '@/types';
 import { useTheme } from '@/context/ThemeContext';
+import { useResponsive } from '@/hooks/useResponsive';
+import { WebLayout, WebCard } from '@/components/WebLayout';
 
 type HomeScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Home'>;
 
@@ -52,17 +55,18 @@ const RideCard: React.FC<{ ride: Ride; onPress: () => void; userLocation?: Locat
   const distance = calculateDistance();
 
   return (
-    <TouchableOpacity style={styles.rideCard} onPress={onPress}>
-      <View style={styles.rideHeader}>
-        <View style={styles.routeContainer}>
-          <Text style={styles.routeText} numberOfLines={1}>
-            {ride.origin.address} → {ride.destination.address}
-          </Text>
+    <TouchableOpacity style={{ marginBottom: 0 }} onPress={onPress} activeOpacity={0.7}>
+      <WebCard hoverable={true}>
+        <View style={styles.rideHeader}>
+          <View style={styles.routeContainer}>
+            <Text style={styles.routeText} numberOfLines={1}>
+              {ride.origin.address} → {ride.destination.address}
+            </Text>
+          </View>
+          <View style={styles.priceContainer}>
+            <Text style={styles.priceText}>${ride.pricePerSeat}</Text>
+          </View>
         </View>
-        <View style={styles.priceContainer}>
-          <Text style={styles.priceText}>${ride.pricePerSeat}</Text>
-        </View>
-      </View>
       
       <View style={styles.rideDetails}>
         <View style={styles.detailItem}>
@@ -126,6 +130,7 @@ const RideCard: React.FC<{ ride: Ride; onPress: () => void; userLocation?: Locat
           </View>
         )}
       </View>
+    </WebCard>
     </TouchableOpacity>
   );
 };
@@ -135,6 +140,7 @@ const HomeScreen: React.FC = () => {
   const { user } = useAuth();
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { colors } = useTheme();
+  const { isWeb, isDesktop, isMobile, responsive } = useResponsive();
   const [searchQuery, setSearchQuery] = useState('');
   const [userLocation, setUserLocation] = useState<LocationType | null>(null);
   const [locationPermission, setLocationPermission] = useState<boolean>(false);
@@ -160,8 +166,21 @@ const HomeScreen: React.FC = () => {
           });
         } else {
           Alert.alert(
-            'Location Permission',
-            'Location access is needed to find nearby rides and provide safety features.'
+            '📍 Location Permission Needed',
+            'UniRideConnect needs location access to:\n• Find nearby rides\n• Show your distance to meeting points\n• Provide safety features\n\nPlease enable location permission in settings.',
+            [
+              { text: 'Not Now', style: 'cancel' },
+              { 
+                text: 'Open Settings', 
+                onPress: () => {
+                  if (Platform.OS === 'ios') {
+                    Linking.openURL('app-settings:');
+                  } else {
+                    Linking.openSettings();
+                  }
+                }
+              },
+            ]
           );
         }
       } catch (error) {
@@ -317,33 +336,111 @@ const HomeScreen: React.FC = () => {
     );
   }
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* View Toggle and Filter Buttons */}
-      <View style={styles.actionBar}>
-        <View style={styles.viewToggle}>
-          <TouchableOpacity
-            style={[styles.viewButton, viewMode === 'list' && styles.viewButtonActive]}
-            onPress={() => setViewMode('list')}
-          >
-            <Ionicons name="list" size={20} color={viewMode === 'list' ? '#fff' : '#718096'} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.viewButton, viewMode === 'map' && styles.viewButtonActive]}
-            onPress={() => setViewMode('map')}
-          >
-            <Ionicons name="map" size={20} color={viewMode === 'map' ? '#fff' : '#718096'} />
-          </TouchableOpacity>
-        </View>
+  // Web Sidebar Component
+  const renderWebSidebar = () => {
+    if (!isDesktop) return null;
 
-        <TouchableOpacity
-          style={styles.filterButton}
-          onPress={() => setShowFilters(true)}
-        >
-          <Ionicons name="options" size={20} color="#3182ce" />
-          <Text style={styles.filterButtonText}>Filters</Text>
-        </TouchableOpacity>
+    return (
+      <View style={webStyles.sidebar}>
+        {/* User Info Card */}
+        <WebCard>
+          <View style={webStyles.sidebarSection}>
+            <View style={webStyles.userAvatarLarge}>
+              <Text style={webStyles.userInitialLarge}>
+                {userProfile?.firstName?.charAt(0) || 'U'}
+              </Text>
+            </View>
+            <Text style={webStyles.userName}>
+              {userProfile?.firstName} {userProfile?.lastName}
+            </Text>
+            <Text style={webStyles.userEmail}>{user?.email}</Text>
+          </View>
+        </WebCard>
+
+        {/* Quick Stats */}
+        <WebCard>
+          <View style={webStyles.sidebarSection}>
+            <Text style={webStyles.sidebarTitle}>📊 Your Stats</Text>
+            <View style={webStyles.statRow}>
+              <Text style={webStyles.statLabel}>Total Rides</Text>
+              <Text style={webStyles.statValue}>0</Text>
+            </View>
+            <View style={webStyles.statRow}>
+              <Text style={webStyles.statLabel}>Saved</Text>
+              <Text style={webStyles.statValue}>৳0</Text>
+            </View>
+          </View>
+        </WebCard>
+
+        {/* Quick Filters (Desktop Only) */}
+        <WebCard>
+          <View style={webStyles.sidebarSection}>
+            <Text style={webStyles.sidebarTitle}>⚙️ Quick Filters</Text>
+            
+            <TouchableOpacity
+              style={webStyles.filterOption}
+              onPress={() => setFilters({ ...filters, verifiedOnly: !filters.verifiedOnly })}
+            >
+              <Text style={webStyles.filterLabel}>Verified Only</Text>
+              <View style={[webStyles.checkbox, filters.verifiedOnly && webStyles.checkboxActive]}>
+                {filters.verifiedOnly && <Ionicons name="checkmark" size={16} color="#fff" />}
+              </View>
+            </TouchableOpacity>
+
+            <Text style={[webStyles.filterLabel, { marginTop: 16, marginBottom: 8 }]}>Max Price: ৳{filters.maxPrice}</Text>
+            <TextInput
+              style={webStyles.priceInput}
+              value={filters.maxPrice.toString()}
+              onChangeText={(text) => setFilters({ ...filters, maxPrice: parseInt(text) || 0 })}
+              keyboardType="numeric"
+              placeholder="Enter max price"
+            />
+          </View>
+        </WebCard>
       </View>
+    );
+  };
+
+  return (
+    <WebLayout sidebar={isDesktop ? renderWebSidebar() : undefined}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        {/* Header for Web */}
+        {isWeb && isDesktop && (
+          <View style={webStyles.webHeader}>
+            <Text style={webStyles.webHeaderTitle}>🚗 Available Rides</Text>
+            <Text style={webStyles.webHeaderSubtitle}>
+              {filteredRides.length} ride{filteredRides.length !== 1 ? 's' : ''} near you
+            </Text>
+          </View>
+        )}
+
+        {/* View Toggle and Filter Buttons */}
+        <View style={[styles.actionBar, isDesktop && webStyles.actionBarDesktop]}>
+          <View style={styles.viewToggle}>
+            <TouchableOpacity
+              style={[styles.viewButton, viewMode === 'list' && styles.viewButtonActive]}
+              onPress={() => setViewMode('list')}
+            >
+              <Ionicons name="list" size={20} color={viewMode === 'list' ? '#fff' : '#718096'} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.viewButton, viewMode === 'map' && styles.viewButtonActive]}
+              onPress={() => setViewMode('map')}
+            >
+              <Ionicons name="map" size={20} color={viewMode === 'map' ? '#fff' : '#718096'} />
+            </TouchableOpacity>
+          </View>
+
+          {!isDesktop && (
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => setShowFilters(true)}
+            >
+              <Ionicons name="options" size={20} color="#3182ce" />
+              <Text style={styles.filterButtonText}>Filters</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
       {/* List View */}
       {viewMode === 'list' && (
@@ -368,7 +465,7 @@ const HomeScreen: React.FC = () => {
 
       {/* Map View */}
       {viewMode === 'map' && userLocation && (
-        <MapView
+        <WebCompatibleMap
           style={styles.map}
           provider={PROVIDER_GOOGLE}
           initialRegion={{
@@ -379,9 +476,10 @@ const HomeScreen: React.FC = () => {
           }}
           showsUserLocation
           showsMyLocationButton
+          fallbackMessage="🗺️ Map view available on mobile app"
         >
           {filteredRides.map((ride) => (
-            <Marker
+            <WebCompatibleMarker
               key={ride.id}
               coordinate={{
                 latitude: ride.origin.latitude,
@@ -394,7 +492,7 @@ const HomeScreen: React.FC = () => {
               <View style={styles.markerContainer}>
                 <Ionicons name="car" size={24} color="#3182ce" />
               </View>
-              <Callout>
+              <WebCompatibleCallout>
                 <View style={styles.calloutContainer}>
                   <Text style={styles.calloutTitle}>
                     {ride.origin.address} → {ride.destination.address}
@@ -402,10 +500,10 @@ const HomeScreen: React.FC = () => {
                   <Text style={styles.calloutPrice}>${ride.pricePerSeat}/seat</Text>
                   <Text style={styles.calloutSeats}>{ride.availableSeats} seats available</Text>
                 </View>
-              </Callout>
-            </Marker>
+              </WebCompatibleCallout>
+            </WebCompatibleMarker>
           ))}
-        </MapView>
+        </WebCompatibleMap>
       )}
 
       {/* Filter Modal */}
@@ -518,6 +616,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </Modal>
     </SafeAreaView>
+    </WebLayout>
   );
 };
 
@@ -988,6 +1087,118 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+});
+
+// Web-specific styles
+const webStyles = StyleSheet.create({
+  sidebar: {
+    gap: 16,
+  },
+  sidebarSection: {
+    gap: 12,
+  },
+  sidebarTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1a365d',
+    marginBottom: 8,
+  },
+  userAvatarLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#3182ce',
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userInitialLarge: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  userName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1a365d',
+    textAlign: 'center',
+  },
+  userEmail: {
+    fontSize: 14,
+    color: '#718096',
+    textAlign: 'center',
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  statLabel: {
+    fontSize: 14,
+    color: '#718096',
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a365d',
+  },
+  filterOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  filterLabel: {
+    fontSize: 14,
+    color: '#4a5568',
+    fontWeight: '500',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#cbd5e0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxActive: {
+    backgroundColor: '#3182ce',
+    borderColor: '#3182ce',
+  },
+  priceInput: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#1a365d',
+  },
+  webHeader: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    backgroundColor: '#fff',
+  },
+  webHeaderTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#1a365d',
+    marginBottom: 4,
+  },
+  webHeaderSubtitle: {
+    fontSize: 16,
+    color: '#718096',
+  },
+  actionBarDesktop: {
+    paddingHorizontal: 24,
+    marginTop: 16,
   },
 });
 

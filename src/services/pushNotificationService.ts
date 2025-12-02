@@ -1,25 +1,30 @@
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
 import { Platform } from 'react-native';
-import Constants from 'expo-constants';
 import { collection, doc, setDoc, deleteDoc, query, where, getDocs, serverTimestamp } from 'firebase/firestore';
 import { firestore } from '@/config/firebaseConfig';
 import type { PushToken } from '@/types/notifications';
+
+// Only import expo-notifications on native platforms to avoid web build issues
+const Notifications = Platform.OS !== 'web' ? require('expo-notifications') : null;
+const Device = Platform.OS !== 'web' ? require('expo-device') : null;
+const Constants = Platform.OS !== 'web' ? require('expo-constants').default : null;
 
 /**
  * PUSH NOTIFICATION SERVICE
  * 
  * Handles device token registration, push notification permissions,
  * and sending push notifications via Expo Push Service
+ * 
+ * ⚠️ Push notifications are DISABLED on web platform
  */
 
-// Check if running in Expo Go
-const isExpoGo = Constants.appOwnership === 'expo';
+// Check if running in Expo Go (only on native)
+const isExpoGo = Platform.OS !== 'web' && Constants ? Constants.appOwnership === 'expo' : false;
 
-// Configure notification behavior
+// Configure notification behavior (only on native)
 // Note: Will show warning in Expo Go but required for production builds
-try {
-  Notifications.setNotificationHandler({
+if (Platform.OS !== 'web' && Notifications) {
+  try {
+    Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
       shouldPlaySound: true,
@@ -27,9 +32,10 @@ try {
       shouldShowBanner: true,
       shouldShowList: true,
     }),
-  });
-} catch (error) {
-  // Silently fail in Expo Go
+    });
+  } catch (error) {
+    // Silently fail in Expo Go
+  }
 }
 
 // ==================== REGISTER FOR PUSH NOTIFICATIONS ====================
@@ -37,6 +43,12 @@ try {
 export const registerForPushNotifications = async (
   userId: string
 ): Promise<string | null> => {
+  // Skip push notifications on web platform
+  if (Platform.OS === 'web') {
+    console.log('ℹ️ Push notifications are not supported on web');
+    return null;
+  }
+
   try {
     // Skip push notifications in Expo Go
     if (isExpoGo) {
@@ -44,7 +56,7 @@ export const registerForPushNotifications = async (
     }
 
     // Check if device is physical (push notifications don't work on emulators)
-    if (!Device.isDevice) {
+    if (!Device || !Device.isDevice) {
       return null;
     }
 
@@ -295,22 +307,28 @@ export const sendPushNotificationToUsers = async (
 // ==================== NOTIFICATION LISTENERS ====================
 
 export type NotificationListener = (
-  notification: Notifications.Notification
+  notification: any
 ) => void;
 
 export type NotificationResponseListener = (
-  response: Notifications.NotificationResponse
+  response: any
 ) => void;
 
 export const addNotificationReceivedListener = (
   listener: NotificationListener
-): Notifications.Subscription => {
+): any => {
+  if (Platform.OS === 'web' || !Notifications) {
+    return { remove: () => {} };
+  }
   return Notifications.addNotificationReceivedListener(listener);
 };
 
 export const addNotificationResponseReceivedListener = (
   listener: NotificationResponseListener
-): Notifications.Subscription => {
+): any => {
+  if (Platform.OS === 'web' || !Notifications) {
+    return { remove: () => {} };
+  }
   return Notifications.addNotificationResponseReceivedListener(listener);
 };
 
@@ -319,9 +337,14 @@ export const addNotificationResponseReceivedListener = (
 export const scheduleLocalNotification = async (
   title: string,
   body: string,
-  trigger: Notifications.NotificationTriggerInput,
+  trigger: any,
   data?: Record<string, any>
 ): Promise<string> => {
+  if (Platform.OS === 'web' || !Notifications) {
+    console.log('ℹ️ Local notifications not supported on web');
+    return '';
+  }
+  
   try {
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
@@ -344,6 +367,8 @@ export const scheduleLocalNotification = async (
 export const cancelScheduledNotification = async (
   notificationId: string
 ): Promise<void> => {
+  if (Platform.OS === 'web' || !Notifications) return;
+  
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
     console.log('✅ Scheduled notification cancelled:', notificationId);
@@ -354,6 +379,8 @@ export const cancelScheduledNotification = async (
 };
 
 export const cancelAllScheduledNotifications = async (): Promise<void> => {
+  if (Platform.OS === 'web' || !Notifications) return;
+  
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
     console.log('✅ All scheduled notifications cancelled');
@@ -382,7 +409,7 @@ export const scheduleRideReminder = async (
     const notificationId = await scheduleLocalNotification(
       '🚗 Ride Starting Soon',
       `Your ride departs in ${minutesBefore} minutes. Get ready!`,
-      { type: 'date', date: reminderTime } as Notifications.DateTriggerInput,
+      { type: 'date', date: reminderTime },
       { matchId, type: 'ride_reminder' }
     );
 
@@ -396,6 +423,8 @@ export const scheduleRideReminder = async (
 // ==================== BADGE MANAGEMENT ====================
 
 export const setBadgeCount = async (count: number): Promise<void> => {
+  if (Platform.OS === 'web' || !Notifications) return;
+  
   try {
     await Notifications.setBadgeCountAsync(count);
   } catch (error) {
@@ -404,6 +433,8 @@ export const setBadgeCount = async (count: number): Promise<void> => {
 };
 
 export const getBadgeCount = async (): Promise<number> => {
+  if (Platform.OS === 'web' || !Notifications) return 0;
+  
   try {
     return await Notifications.getBadgeCountAsync();
   } catch (error) {
@@ -413,6 +444,8 @@ export const getBadgeCount = async (): Promise<number> => {
 };
 
 export const clearBadge = async (): Promise<void> => {
+  if (Platform.OS === 'web' || !Notifications) return;
+  
   try {
     await Notifications.setBadgeCountAsync(0);
   } catch (error) {

@@ -23,9 +23,9 @@ web-build/
 # Firebase sensitive files - SECURITY CRITICAL
 google-services.json
 GoogleService-Info.plist
-.firebaserc
 firebase-debug.log*
 firestore-debug.log*
+# Note: .firebaserc is now tracked for deployment purposes
 
 # Note: firebaseConfig.ts is NOT ignored - it's needed for builds
 # Firebase keys are CLIENT-SIDE keys (safe to commit)
@@ -80,3 +80,4 @@ android/app/build/
 android/.gradle/
 ios/Pods/
 ios/build/
+.vercel

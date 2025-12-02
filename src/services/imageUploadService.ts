@@ -234,7 +234,13 @@ export const showImagePickerOptions = (): Promise<'camera' | 'library' | null> =
           onPress: () => resolve(null),
         },
       ],
-      { cancelable: true, onDismiss: () => resolve(null) }
+      { cancelable: true, onDismiss: () => {
+        try {
+          resolve(null);
+        } catch (error) {
+          console.log('Alert dismiss error caught:', error);
+        }
+      } }
     );
   });
 };

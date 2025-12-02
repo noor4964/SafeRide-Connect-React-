@@ -12,6 +12,8 @@
     "strict": false,
     "noImplicitAny": false,
     "forceConsistentCasingInFileNames": true,
+    "skipDefaultLibCheck": true,
+    "noResolve": false,
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -49,13 +51,17 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    "**/*.js",
-    "**/*.jsx"
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.js",
+    "src/**/*.jsx",
+    "*.ts",
+    "*.tsx"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "node_modules/**/*",
+    "**/node_modules/**/*"
   ],
   "extends": "expo/tsconfig.base"
 }

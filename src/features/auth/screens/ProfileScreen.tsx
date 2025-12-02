@@ -22,6 +22,8 @@ import { MainTabParamList } from '@/types';
 import { pickAndUploadProfilePicture } from '@/services/imageUploadService';
 import { updateUserProfile } from '@/features/auth/services/userService';
 import { useTheme } from '@/context/ThemeContext';
+import { useResponsive } from '@/hooks/useResponsive';
+import { WebLayout, WebCard } from '@/components/WebLayout';
 
 type ProfileScreenNavigationProp = BottomTabNavigationProp<MainTabParamList, 'Profile'>;
 
@@ -29,6 +31,7 @@ const ProfileScreen: React.FC = () => {
   const { user, userProfile, signOut, loading } = useAuth();
   const navigation = useNavigation<ProfileScreenNavigationProp>();
   const { themeMode, setThemeMode, colors } = useTheme();
+  const { isDesktop } = useResponsive();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   
@@ -184,14 +187,24 @@ const ProfileScreen: React.FC = () => {
   const isFaculty = user?.email?.includes('@aiub.edu') && !isStudent;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* Profile Header */}
-        <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+    <WebLayout>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }, isDesktop && webStyles.container]} edges={['top']}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <ScrollView contentContainerStyle={[styles.scrollContent, isDesktop && webStyles.scrollContent]} keyboardShouldPersistTaps="handled">
+            {/* Desktop Header */}
+            {isDesktop && (
+              <View style={webStyles.header}>
+                <Text style={webStyles.headerTitle}>My Profile</Text>
+                <Text style={webStyles.headerSubtitle}>Manage your account and preferences</Text>
+              </View>
+            )}
+
+            {/* Profile Header */}
+            <WebCard>
+              <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }, isDesktop && webStyles.profileHeader]}>
           <View style={styles.avatarContainer}>
             {userProfile?.profileImageUrl ? (
               <Image
@@ -252,10 +265,12 @@ const ProfileScreen: React.FC = () => {
               </Text>
             </View>
           </View>
-        </View>
+              </View>
+            </WebCard>
 
-        {/* Profile Information */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+            {/* Profile Information */}
+            <WebCard>
+              <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Profile Information</Text>
             <TouchableOpacity 
@@ -421,10 +436,12 @@ const ProfileScreen: React.FC = () => {
               <Text style={styles.infoValue}>{isStudent ? 'Student' : 'Faculty'}</Text>
             </View>
           </View>
-        </View>
+              </View>
+            </WebCard>
 
-        {/* Safety & Settings */}
-        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+            {/* Safety & Settings */}
+            <WebCard>
+              <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Safety & Settings</Text>
 
           <TouchableOpacity 
@@ -515,27 +532,68 @@ const ProfileScreen: React.FC = () => {
             <Text style={styles.menuText}>Help & Support</Text>
             <Ionicons name="chevron-forward" size={20} color="#a0aec0" />
           </TouchableOpacity>
-        </View>
+              </View>
+            </WebCard>
 
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          disabled={isLoggingOut}
-        >
-          <Ionicons name="log-out-outline" size={22} color="#e53e3e" />
-          <Text style={styles.logoutText}>
-            {isLoggingOut ? 'Logging out...' : 'Logout'}
-          </Text>
-        </TouchableOpacity>
+            {/* Logout Button */}
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+              disabled={isLoggingOut}
+            >
+              <Ionicons name="log-out-outline" size={22} color="#e53e3e" />
+              <Text style={styles.logoutText}>
+                {isLoggingOut ? 'Logging out...' : 'Logout'}
+              </Text>
+            </TouchableOpacity>
 
-        {/* App Version */}
-        <Text style={styles.versionText}>SafeRide Connect v1.0.0</Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+            {/* App Version */}
+            <Text style={styles.versionText}>SafeRide Connect v1.0.0</Text>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </WebLayout>
   );
 };
+
+const webStyles = StyleSheet.create({
+  container: {
+    backgroundColor: 'transparent',
+  },
+  scrollContent: {
+    paddingHorizontal: 32,
+    paddingBottom: 40,
+    maxWidth: 800,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  header: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 32,
+    paddingVertical: 24,
+    borderRadius: 16,
+    marginBottom: 32,
+    alignItems: 'center',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+  },
+  headerTitle: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#1a202c',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 18,
+    color: '#718096',
+  },
+  profileHeader: {
+    borderRadius: 12,
+    marginBottom: 0,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {

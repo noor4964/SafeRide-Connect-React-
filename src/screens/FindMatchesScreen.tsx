@@ -61,31 +61,42 @@ const FindMatchesScreen: React.FC = () => {
 
   // Create match mutation
   const createMatchMutation = useMutation({
-    mutationFn: (requestIds: string[]) => createMatch(requestIds),
+    mutationFn: async (requestIds: string[]) => {
+      console.log('🎯 Creating match with requestIds:', requestIds);
+      console.log('👤 Current user ID:', user?.uid);
+      const matchId = await createMatch(requestIds, user?.uid);
+      console.log('✅ Match created with ID:', matchId);
+      return matchId;
+    },
     onSuccess: (matchId) => {
+      console.log('🎉 Match creation success! Navigating to matchId:', matchId);
       queryClient.invalidateQueries({ queryKey: ['rideRequest', requestId] });
       queryClient.invalidateQueries({ queryKey: ['userRideRequests'] });
       
-      Alert.alert(
-        'Match Created! 🎉',
-        'You\'ve been matched! View match details to see participants and coordinate.',
-        [
-          {
-            text: 'View Match',
-            onPress: () => {
-              navigation.navigate('MatchDetails', { matchId });
+      // Small delay to ensure Firestore has fully committed the document
+      setTimeout(() => {
+        Alert.alert(
+          'Match Created! 🎉',
+          'You\'ve been matched! View match details to see participants and coordinate.',
+          [
+            {
+              text: 'View Match',
+              onPress: () => {
+                console.log('📍 Navigating to MatchDetails with matchId:', matchId);
+                navigation.navigate('MatchDetails', { matchId });
+              },
             },
-          },
-          {
-            text: 'Later',
-            style: 'cancel',
-          },
-        ]
-      );
+            {
+              text: 'Later',
+              style: 'cancel',
+            },
+          ]
+        );
+      }, 500); // 500ms delay to ensure Firestore commit
     },
     onError: (error) => {
+      console.error('❌ Match creation error:', error);
       Alert.alert('Error', 'Failed to create match. Please try again.');
-      console.error('Match creation error:', error);
     },
   });
 

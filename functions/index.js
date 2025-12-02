@@ -189,3 +189,13 @@ exports.cleanupExpiredOTPs = functions.pubsub
     console.log(`Cleaned up ${expiredDocs.size} expired OTP documents`);
     return { deletedCount: expiredDocs.size };
   });
+
+// ==================== RIDE MATCHING SCHEDULED TASKS ====================
+// Import and export ride matching scheduled tasks
+const scheduledTasks = require('./scheduledTasks');
+
+exports.expireOldMatches = scheduledTasks.expireOldMatches;
+exports.checkConfirmationTimeouts = scheduledTasks.checkConfirmationTimeouts;
+exports.cleanupExpiredRequests = scheduledTasks.cleanupExpiredRequests;
+exports.notifyMatchConfirmation = scheduledTasks.notifyMatchConfirmation;
+exports.onMatchFullyConfirmed = scheduledTasks.onMatchFullyConfirmed;

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -8,6 +8,7 @@ import { useAuth } from '@/features/auth/context/AuthContext';
 import { RootStackParamList, AuthStackParamList, MainTabParamList } from '@/types';
 import { subscribeToUserNotifications } from '@/services/notificationService';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useResponsive } from '@/hooks/useResponsive';
 
 // Import screens
 import LoginScreen from '@/features/auth/screens/LoginScreen';
@@ -57,6 +58,7 @@ const RideVerificationScreen: React.FC = () => (
 const MainTabNavigator: React.FC = () => {
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
+  const { isWeb, isDesktop } = useResponsive();
 
   // Subscribe to notifications for badge count
   useEffect(() => {
@@ -137,6 +139,8 @@ const MainTabNavigator: React.FC = () => {
           paddingBottom: 8,
           paddingTop: 8,
           height: 84,
+          // Hide bottom tab bar on desktop web
+          display: (isWeb && isDesktop) ? 'none' : 'flex',
         },
         tabBarLabelStyle: {
           fontSize: 12,

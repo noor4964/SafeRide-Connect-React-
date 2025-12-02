@@ -93,15 +93,20 @@ service cloud.firestore {
       // Anyone authenticated can read messages (simplified for now)
       allow read: if isAuthenticated();
       
-      // Anyone authenticated can send messages
+      // Anyone authenticated can create messages as themselves
+      // System messages use a real participant's userId
       allow create: if isAuthenticated() && 
                        request.auth.uid == request.resource.data.senderId;
       
-      // Only sender can update their message
-      allow update: if isAuthenticated() && isOwner(resource.data.senderId);
+      // Only sender can update their message (except system type messages)
+      allow update: if isAuthenticated() && 
+                       request.resource.data.type != 'system' &&
+                       isOwner(resource.data.senderId);
       
-      // Only sender can delete their message
-      allow delete: if isAuthenticated() && isOwner(resource.data.senderId);
+      // Only sender can delete their message (except system type messages)
+      allow delete: if isAuthenticated() && 
+                       resource.data.type != 'system' &&
+                       isOwner(resource.data.senderId);
     }
 
     // Messages collection (legacy - for future chat feature)
