@@ -12,6 +12,7 @@ import {
   Modal,
   ScrollView,
   Platform,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +25,7 @@ import { distanceBetween } from 'geofire-common';
 import { useUser } from '@/features/auth/hooks/useUser';
 import { useAuth } from '@/features/auth/context/AuthContext';
 import { getRides, getRidesNearLocation } from '@/features/rides/services/ridesService';
+import { getUserRideRequests } from '@/services/rideMatchingService';
 import { Ride, Location as LocationType, MainTabParamList } from '@/types';
 import { useTheme } from '@/context/ThemeContext';
 import { useResponsive } from '@/hooks/useResponsive';
@@ -64,7 +66,7 @@ const RideCard: React.FC<{ ride: Ride; onPress: () => void; userLocation?: Locat
             </Text>
           </View>
           <View style={styles.priceContainer}>
-            <Text style={styles.priceText}>${ride.pricePerSeat}</Text>
+            <Text style={styles.priceText}>৳{ride.pricePerSeat}</Text>
           </View>
         </View>
       
@@ -210,6 +212,16 @@ const HomeScreen: React.FC = () => {
     refetchInterval: 30 * 1000, // Auto-refetch every 30 seconds
   });
 
+  // Fetch user's active ride requests for quick stats
+  const { data: userRequests } = useQuery({
+    queryKey: ['userRideRequests', user?.uid],
+    queryFn: () => getUserRideRequests(user?.uid || ''),
+    enabled: !!user?.uid,
+    staleTime: 30 * 1000,
+  });
+
+  const activeRequestsCount = userRequests?.filter(r => r.status === 'searching' || r.status === 'matched').length || 0;
+
   // Filter and sort rides
   const filteredRides = useMemo(() => {
     if (!rides) return [];
@@ -315,11 +327,43 @@ const HomeScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Quick safety access */}
-      <TouchableOpacity style={styles.sosButton}>
-        <Ionicons name="shield-checkmark" size={20} color="#ffffff" />
-        <Text style={styles.sosButtonText}>Emergency SOS</Text>
-      </TouchableOpacity>
+      {/* Quick Actions */}
+      <View style={styles.quickActions}>
+        <TouchableOpacity 
+          style={styles.quickActionPrimary}
+          onPress={() => navigation.navigate('PostRequest')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="add-circle" size={20} color="#ffffff" />
+          <Text style={styles.quickActionPrimaryText}>Post Ride Request</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.sosButton}
+          onPress={() => navigation.navigate('Safety')}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="shield-checkmark" size={20} color="#ffffff" />
+          <Text style={styles.sosButtonText}>SOS</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Active Requests Summary */}
+      {activeRequestsCount > 0 && (
+        <TouchableOpacity 
+          style={styles.activeRequestsBanner}
+          onPress={() => navigation.navigate('MyRequests')}
+          activeOpacity={0.7}
+        >
+          <View style={styles.activeRequestsContent}>
+            <Ionicons name="time-outline" size={20} color="#3182ce" />
+            <Text style={styles.activeRequestsText}>
+              You have {activeRequestsCount} active request{activeRequestsCount !== 1 ? 's' : ''}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#3182ce" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -362,13 +406,20 @@ const HomeScreen: React.FC = () => {
           <View style={webStyles.sidebarSection}>
             <Text style={webStyles.sidebarTitle}>📊 Your Stats</Text>
             <View style={webStyles.statRow}>
-              <Text style={webStyles.statLabel}>Total Rides</Text>
-              <Text style={webStyles.statValue}>0</Text>
+              <Text style={webStyles.statLabel}>Active Requests</Text>
+              <Text style={webStyles.statValue}>{activeRequestsCount}</Text>
             </View>
             <View style={webStyles.statRow}>
-              <Text style={webStyles.statLabel}>Saved</Text>
-              <Text style={webStyles.statValue}>৳0</Text>
+              <Text style={webStyles.statLabel}>Total Requests</Text>
+              <Text style={webStyles.statValue}>{userRequests?.length || 0}</Text>
             </View>
+            <TouchableOpacity 
+              style={webStyles.viewRequestsButton}
+              onPress={() => navigation.navigate('MyRequests')}
+            >
+              <Text style={webStyles.viewRequestsButtonText}>View All Requests</Text>
+              <Ionicons name="chevron-forward" size={14} color="#3182ce" />
+            </TouchableOpacity>
           </View>
         </WebCard>
 
@@ -683,6 +734,32 @@ const styles = StyleSheet.create({
   clearButton: {
     marginLeft: 8,
   },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  quickActionPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#3182ce',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    shadowColor: '#3182ce',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  quickActionPrimaryText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
   sosButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -690,13 +767,41 @@ const styles = StyleSheet.create({
     backgroundColor: '#e53e3e',
     borderRadius: 8,
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
+    shadowColor: '#e53e3e',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   sosButtonText: {
     color: '#ffffff',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  activeRequestsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ebf8ff',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#bee3f8',
+  },
+  activeRequestsContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activeRequestsText: {
+    color: '#2c5282',
+    fontSize: 15,
+    fontWeight: '600',
+    marginLeft: 10,
   },
   rideCard: {
     backgroundColor: '#ffffff',
@@ -1178,6 +1283,21 @@ const webStyles = StyleSheet.create({
     paddingVertical: 8,
     fontSize: 14,
     color: '#1a365d',
+  },
+  viewRequestsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginTop: 8,
+    backgroundColor: '#ebf8ff',
+    borderRadius: 8,
+  },
+  viewRequestsButtonText: {
+    fontSize: 14,
+    color: '#3182ce',
+    fontWeight: '600',
   },
   webHeader: {
     paddingHorizontal: 24,
